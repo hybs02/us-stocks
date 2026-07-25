@@ -1,0 +1,37 @@
+name: daily-scan
+
+# 米国市場のクローズ後に走らせる。
+# 米東部16:00クローズ → UTC 21:00(夏) / 22:00(冬)。余裕をみて UTC 23:10 に実行。
+# （日本時間の朝8時ごろ。起きたら結果ができている）
+on:
+  schedule:
+    - cron: "10 23 * * 1-5"
+  workflow_dispatch:        # 手動実行も可能にする
+
+permissions:
+  contents: write           # data.json をコミットするため
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 銘柄をスキャンして data.json を作る
+        run: python scan.py
+
+      - name: 結果をコミット
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "毎日のスキャン結果を更新 ($(date -u +%Y-%m-%d))"
+            git push
+          fi

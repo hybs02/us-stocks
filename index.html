@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f1420">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="米国株">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%87%BA%F0%9F%87%B8%3C/text%3E%3C/svg%3E">
+<title>米国株 中長期スクリーナー</title>
+<style>
+  :root{
+    --bg:#0f1420; --card:#1a2233; --line:#2a3550;
+    --buy:#23c483; --sell:#ff5d6c; --neu:#8896b3;
+    --text:#e8edf7; --sub:#9aa7c2; --accent:#ffcf4a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
+    padding:14px; max-width:520px; margin:0 auto;}
+  h1{font-size:18px; margin:4px 0 10px; text-align:center;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:14px; margin-bottom:12px;}
+  .tabs{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px;}
+  .tabs button{padding:10px 0; border:1px solid var(--line); background:var(--card);
+    color:var(--text); border-radius:10px; font-size:13px; font-weight:700;}
+  .tabs button.on{background:var(--accent); color:#1a1300; border-color:var(--accent);}
+  .regime{border-radius:12px; padding:10px 12px; font-size:12.5px; margin-bottom:12px;
+    line-height:1.6; font-weight:700;}
+  .r-on{background:rgba(35,196,131,.14); border:1px solid var(--buy); color:var(--buy);}
+  .r-off{background:rgba(255,93,108,.14); border:1px solid var(--sell); color:#ffb3ba;}
+  .row{display:flex; align-items:center; gap:9px; padding:11px 6px;
+    border-bottom:1px solid var(--line); cursor:pointer;}
+  .row:last-child{border-bottom:none;}
+  .row:active{background:#0c111c;}
+  .rk{flex:0 0 22px; text-align:center; font-size:12px; color:var(--sub); font-weight:700;}
+  .tk{flex:0 0 62px; font-weight:800; font-size:14px;}
+  .nm{flex:1; font-size:11.5px; color:var(--sub); overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap;}
+  .sc{flex:0 0 46px; text-align:right; font-weight:800; font-size:15px;}
+  .s-hi{color:var(--buy);} .s-mid{color:var(--accent);} .s-lo{color:var(--neu);}
+  .bar{height:7px; background:#0c111c; border-radius:4px; overflow:hidden; margin-top:3px;}
+  .bar i{display:block; height:100%; background:var(--accent);}
+  .fac{display:flex; align-items:center; gap:8px; font-size:11.5px; margin:7px 0;}
+  .fac .fl{flex:0 0 84px; color:var(--sub);}
+  .fac .fb{flex:1;}
+  .fac .fv{flex:0 0 28px; text-align:right; color:var(--sub); font-size:11px;}
+  .big{font-size:26px; font-weight:800; text-align:center;}
+  .sub{font-size:11.5px; color:var(--sub); text-align:center;}
+  .fnote{font-size:11.5px; color:var(--sub); line-height:1.7; margin-top:6px;}
+  .kv{display:flex; justify-content:space-between; padding:8px 0;
+    border-bottom:1px solid var(--line); font-size:12.5px;}
+  .kv:last-child{border-bottom:none;}
+  .kv b{color:var(--accent);}
+  .back{background:none; border:none; color:var(--accent); font-size:13px;
+    font-weight:700; padding:6px 0; margin-bottom:6px;}
+  .loading{text-align:center; padding:36px; color:var(--sub);}
+  .err{color:var(--sell); text-align:center; padding:16px; font-size:13px; line-height:1.7;}
+  .warn{background:rgba(255,93,108,.14); border:1px solid var(--sell); color:#ffb3ba;
+    border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.6;
+    margin-bottom:12px; font-weight:600;}
+  .banner{background:rgba(255,207,74,.12); border:1px solid var(--accent); color:var(--accent);
+    border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.6; margin-bottom:12px;}
+  details{margin-bottom:12px; font-size:12px; color:var(--sub);}
+  summary{cursor:pointer; color:var(--accent); font-weight:700; padding:6px 0;}
+  .keybox{display:flex; gap:6px; margin-bottom:8px;}
+  .keybox input{flex:1; padding:9px; border-radius:10px; border:1px solid var(--line);
+    background:#0c111c; color:var(--text); font-size:13px;}
+  .keybox select{padding:9px; border-radius:10px; border:1px solid var(--line);
+    background:#0c111c; color:var(--text); font-size:13px; font-weight:700;}
+  .foot{font-size:10.5px; color:var(--sub); text-align:center; margin-top:8px; line-height:1.6;}
+  .pill{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:6px;
+    background:rgba(136,150,179,.2); color:var(--sub); margin-right:4px;}
+  .p-good{background:rgba(35,196,131,.2); color:var(--buy);}
+  .p-bad{background:rgba(255,93,108,.2); color:#ffb3ba;}
+</style>
+</head>
+<body>
+  <h1>米国株 中長期スクリーナー</h1>
+  <div class="tabs">
+    <button id="tabBuy" class="on">買い候補</button>
+    <button id="tabHold">保有チェック</button>
+    <button id="tabSet">⚙ 設定</button>
+  </div>
+  <div id="app"><div class="loading">読み込み中…</div></div>
+  <div class="foot">※参考情報です。最終判断は自己責任で。</div>
+<script>
+// データはGitHub Actionsが毎晩作る data.json を読むだけ（APIキー不要）
+let DATA=null, VIEW="buy", SEL=null;
+let balance = parseFloat(localStorage.getItem("us_bal")) || 0;
+let posPct  = parseFloat(localStorage.getItem("us_pos")) || 5;
+let held    = JSON.parse(localStorage.getItem("us_held") || "[]");
+
+const app=()=>document.getElementById("app");
+const fmtUsd=v=> "$"+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const scoreCls=s=> s>=70?"s-hi":(s>=50?"s-mid":"s-lo");
+
+async function boot(){
+  try{
+    const r=await fetch("data.json?v="+Date.now());
+    if(!r.ok) throw new Error("data.json が読めません ("+r.status+")");
+    DATA=await r.json();
+  }catch(e){
+    app().innerHTML=`<div class="card"><div class="err">データを読み込めませんでした。<br>
+      ${e.message}<br><br>毎晩の自動更新がまだ動いていない可能性があります。</div></div>`;
+    return;
+  }
+  render();
+}
+
+function regimeBox(){
+  const m=DATA.market||{};
+  const on=m.risk_on;
+  return `<div class="regime ${on?'r-on':'r-off'}">
+    ${on?'●':'▲'} 相場全体：${m.label||'—'}
+    <div style="font-weight:400;font-size:11.5px;margin-top:3px;">${m.note||''}</div></div>`;
+}
+
+function render(){
+  if(VIEW==="detail" && SEL) return renderDetail();
+  if(VIEW==="set")   return renderSettings();
+  if(VIEW==="hold")  return renderHeld();
+  return renderBuy();
+}
+
+function renderBuy(){
+  const list=(DATA.stocks||[]).filter(s=>s.sig==="buy").slice(0,40);
+  const rows=list.map((s,i)=>`
+    <div class="row" data-t="${s.t}">
+      <div class="rk">${i+1}</div>
+      <div class="tk">${s.t}</div>
+      <div class="nm">${s.n}</div>
+      <div class="sc ${scoreCls(s.score)}">${s.score}</div>
+    </div>`).join("") || `<div class="fnote">いま買い候補はありません。相場全体が弱い時は候補が減ります（無理に買わないのが正解）。</div>`;
+  app().innerHTML = regimeBox() + secWarn(list) + `<div class="card">
+    <div style="font-size:12px;color:var(--sub);margin-bottom:6px;">
+      スコアの高い順（100点満点）。タップで詳細。<br>
+      <b style="color:var(--accent)">上位10銘柄くらいまで</b>を目安に、業種を分けて買うのが検証で最も安定しました。</div>${rows}</div>
+    <div class="fnote">更新: ${DATA.updated||'—'}　対象: ${DATA.universe||'—'}銘柄（S&amp;P500）
+      ${DATA.note_bias?`<br><br>${DATA.note_bias}`:''}</div>`;
+  bindRows();
+}
+
+// 同じ業種に偏っていないかの注意（中長期では分散が効く）
+function secWarn(list){
+  if(list.length<5) return "";
+  const c={}; list.slice(0,10).forEach(s=>c[s.sec]=(c[s.sec]||0)+1);
+  const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
+  if(top && top[1]>=5) return `<div class="banner">⚠ 上位10件のうち${top[1]}件が「${top[0]}」に偏っています。
+    同じ業種だけ買うと一緒に下がります。業種を分けて持つのが安全です。</div>`;
+  return "";
+}
+
+function bindRows(){
+  app().querySelectorAll(".row[data-t]").forEach(el=>{
+    el.addEventListener("click",()=>{
+      SEL=(DATA.stocks||[]).find(x=>x.t===el.dataset.t);
+      VIEW="detail"; render(); window.scrollTo(0,0);
+    });
+  });
+}
+
+function facBar(label, v){
+  const w=Math.max(0,Math.min(100,v||0));
+  return `<div class="fac"><div class="fl">${label}</div>
+    <div class="fb"><div class="bar"><i style="width:${w}%"></i></div></div>
+    <div class="fv">${Math.round(w)}</div></div>`;
+}
+
+function renderDetail(){
+  const s=SEL;
+  const rate = DATA.usdjpy || 150;          // ドル円。データに無ければ概算値
+  const yenPerShare = s.px * rate;
+  const lot = balance>0 ? Math.floor(balance*posPct/100/yenPerShare) : null;
+  const isHeld = held.includes(s.t);
+  app().innerHTML=`
+    <button class="back" id="back">← 一覧へ戻る</button>
+    <div class="card">
+      <div style="text-align:center;font-size:13px;color:var(--sub);">${s.t}　${s.n}</div>
+      <div class="big">${fmtUsd(s.px)}</div>
+      <div class="sub">${s.sec}</div>
+      <div style="text-align:center;margin-top:10px;">
+        <span class="pill ${s.sig==='buy'?'p-good':(s.sig==='avoid'?'p-bad':'')}">${
+          s.sig==='buy'?'買い候補':(s.sig==='avoid'?'見送り':'様子見')}</span>
+        <span class="pill">総合 ${s.score}点</span>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">評価の内訳</div>
+      ${facBar("値上がりの勢い", s.f.mom)}
+      ${facBar("長期トレンド",   s.f.trend)}
+      ${facBar("値動きの安定",   s.f.vol)}
+      ${facBar("割安さ",         s.f.val)}
+      ${facBar("企業の質",       s.f.qual)}
+      <div class="fnote">※数字は「S&amp;P500の中での順位」です（100＝最上位、50＝真ん中）。</div>
+    </div>
+    <div class="card">
+      <div class="kv"><span>想定の保有期間</span><b>${s.hold||"6〜12ヶ月"}</b></div>
+      <div class="kv"><span>撤退ライン（200日線）</span>
+        <b>${fmtUsd(s.stop)}<span style="color:var(--sell);font-size:11.5px;">
+        （${s.stop_pct!=null?s.stop_pct:'—'}%）</span></b></div>
+      ${lot!==null?`<div class="kv"><span>買う株数の目安（資金の${posPct}%）</span>
+        <b>${lot}株 ≒ ¥${Math.round(lot*yenPerShare).toLocaleString()}</b></div>`:
+        `<div class="fnote">⚙設定で資金を入れると、買う株数の目安が出ます。</div>`}
+      <div class="fnote">撤退ラインまで下がると<b style="color:var(--sell)">${s.stop_pct!=null?Math.abs(s.stop_pct):'—'}%の含み損</b>になります。
+        資金の${posPct}%で買えば、資金全体では約${lot!==null&&s.stop_pct!=null?(Math.abs(s.stop_pct)*posPct/100).toFixed(1):'—'}%の損失です。
+        中長期は途中で必ず下がる場面があるので、この幅に耐えられる金額だけ買ってください。</div>
+    </div>
+    ${s.why?`<div class="card"><div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">なぜこの評価？</div>
+      <div class="fnote" style="color:var(--text);">${s.why}</div></div>`:""}
+    <button style="width:100%;padding:13px;border-radius:12px;border:1px solid ${isHeld?'var(--sell)':'var(--accent)'};
+      background:${isHeld?'rgba(255,93,108,.15)':'var(--card)'};color:${isHeld?'#ffb3ba':'var(--accent)'};
+      font-weight:700;font-size:14px;margin-bottom:14px;" id="toggleHold">
+      ${isHeld?"保有リストから外す":"＋ 保有リストに追加"}</button>`;
+  document.getElementById("back").onclick=()=>{VIEW="buy";render();};
+  document.getElementById("toggleHold").onclick=()=>{
+    held = isHeld ? held.filter(x=>x!==s.t) : held.concat(s.t);
+    localStorage.setItem("us_held",JSON.stringify(held));
+    render();
+  };
+}
+
+function renderHeld(){
+  if(!held.length){
+    app().innerHTML=`<div class="card"><div class="fnote">
+      保有リストは空です。銘柄の詳細画面から「＋保有リストに追加」で登録すると、
+      ここで<b>売り時</b>をまとめて確認できます。</div></div>`;
+    return;
+  }
+  const rows=held.map(t=>{
+    const s=(DATA.stocks||[]).find(x=>x.t===t);
+    if(!s) return `<div class="row"><div class="tk">${t}</div>
+      <div class="nm">対象外（S&amp;P500から外れた可能性）</div></div>`;
+    const sell = s.sig==="avoid" || s.px<=s.stop;
+    return `<div class="row" data-t="${s.t}">
+      <div class="tk">${s.t}</div>
+      <div class="nm">${sell?'<span style="color:#ffb3ba">売り検討</span>':'継続保有でOK'}</div>
+      <div class="sc ${scoreCls(s.score)}">${s.score}</div></div>`;
+  }).join("");
+  app().innerHTML=regimeBox()+`<div class="card">${rows}</div>
+    <div class="fnote">「売り検討」＝評価が下がった、または撤退ラインを割った銘柄です。</div>`;
+  bindRows();
+}
+
+function renderSettings(){
+  app().innerHTML=`<div class="card">
+    <div class="keybox">
+      <input id="bal" type="text" inputmode="numeric" placeholder="資金(円) 例: 1000000" value="${balance||''}">
+      <select id="pos">
+        ${[3,5,10,15,20].map(v=>`<option value="${v}" ${v===posPct?'selected':''}>1銘柄 ${v}%</option>`).join("")}
+      </select>
+    </div>
+    <div class="fnote">資金と「1銘柄あたり何%まで買うか」を決めると、買う株数の目安が出ます。
+      中長期は<b>5〜10%ずつ・10銘柄前後に分ける</b>のが一般的です。</div>
+    <div class="fnote" style="margin-top:10px;">保有リスト: ${held.length}件
+      ${held.length?`<br>${held.join(", ")}`:""}</div>
+  </div>`;
+  const b=document.getElementById("bal"), p=document.getElementById("pos");
+  b.oninput=()=>{balance=parseFloat(b.value.replace(/[^\d.]/g,""))||0;
+    localStorage.setItem("us_bal",balance);};
+  p.onchange=()=>{posPct=parseFloat(p.value); localStorage.setItem("us_pos",posPct);};
+}
+
+document.getElementById("tabBuy").onclick =()=>{VIEW="buy"; setTab(0); render();};
+document.getElementById("tabHold").onclick=()=>{VIEW="hold";setTab(1); render();};
+document.getElementById("tabSet").onclick =()=>{VIEW="set"; setTab(2); render();};
+function setTab(i){
+  ["tabBuy","tabHold","tabSet"].forEach((id,k)=>
+    document.getElementById(id).classList.toggle("on",k===i));
+}
+boot();
+</script>
+</body>
+</html>
