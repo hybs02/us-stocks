@@ -187,13 +187,19 @@ function renderDetail(){
       </div>
     </div>
     <div class="card">
-      <div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">評価の内訳</div>
+      <div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">
+        スコアの内訳（この3つで100点を決めています）</div>
       ${facBar("値上がりの勢い", s.f.mom)}
       ${facBar("長期トレンド",   s.f.trend)}
-      ${facBar("値動きの安定",   s.f.vol)}
-      ${facBar("割安さ",         s.f.val)}
-      ${facBar("企業の質",       s.f.qual)}
-      <div class="fnote">※数字は「S&amp;P500の中での順位」です（100＝最上位、50＝真ん中）。</div>
+      ${facBar("1年の勢い",      s.f.mom12)}
+      <div class="fnote">※「S&amp;P500の中での順位」です（100＝最上位、50＝真ん中）。
+        この3つは20年の検証で実際に効いた指標だけを使っています。</div>
+      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);">
+        <div class="fnote" style="margin:0;">参考（点数には入れていません）</div>
+        ${facBar("値動きの穏やかさ", s.f.vol)}
+        <div class="fnote">値動きが激しい銘柄ほど左寄りです。検証では成績との
+          関係がはっきりしなかったため点数には使わず、心構えの目安として出しています。</div>
+      </div>
     </div>
     <div class="card">
       <div class="kv"><span>想定の保有期間</span><b>${s.hold||"6〜12ヶ月"}</b></div>
@@ -203,8 +209,8 @@ function renderDetail(){
       ${lot!==null?`<div class="kv"><span>買う株数の目安（資金の${posPct}%）</span>
         <b>${lot}株 ≒ ¥${Math.round(lot*yenPerShare).toLocaleString()}</b></div>`:
         `<div class="fnote">⚙設定で資金を入れると、買う株数の目安が出ます。</div>`}
-      <div class="fnote">撤退ラインまで下がると<b style="color:var(--sell)">${s.stop_pct!=null?Math.abs(s.stop_pct):'—'}%の含み損</b>になります。
-        資金の${posPct}%で買えば、資金全体では約${lot!==null&&s.stop_pct!=null?(Math.abs(s.stop_pct)*posPct/100).toFixed(1):'—'}%の損失です。
+      <div class="fnote">撤退ラインまで下がると<b style="color:var(--sell)">${s.stop_pct!=null?Math.abs(s.stop_pct).toFixed(1):'—'}%の含み損</b>になります。
+        資金の${posPct}%で買った場合、資金全体では約<b>${s.stop_pct!=null?(Math.abs(s.stop_pct)*posPct/100).toFixed(1):'—'}%</b>の損失です。
         中長期は途中で必ず下がる場面があるので、この幅に耐えられる金額だけ買ってください。</div>
     </div>
     ${s.why?`<div class="card"><div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">なぜこの評価？</div>
