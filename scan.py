@@ -9,7 +9,7 @@
     取れないため厳密な検証ができない。順位付けの主役にはしない。
 """
 import json, urllib.request, urllib.parse, http.cookiejar, time, statistics, io, os, sys, csv
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 OUT = "data.json"
@@ -275,8 +275,10 @@ def main():
     except Exception:
         usdjpy = None
 
+    # GitHubのサーバーはUTCなので、明示的に日本時間へ直して表示する
+    jst = timezone(timedelta(hours=9))
     out = {
-        "updated": datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M"),
+        "updated": datetime.now(timezone.utc).astimezone(jst).strftime("%Y-%m-%d %H:%M") + " (日本時間)",
         "universe": len(ok),
         "usdjpy": usdjpy,
         "market": {
