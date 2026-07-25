@@ -20,11 +20,16 @@ SP500_URL = ("https://raw.githubusercontent.com/datasets/"
 
 # ---------------- 取得まわり ----------------
 def _open(url, opener=None, tries=3):
+    """opener を渡した時は OpenerDirector.open() を使う。
+    （OpenerDirector に urlopen() は無い。ここを間違えると
+      cookie付きのファンダ取得が毎回失敗して黙って空になる）"""
     last = None
     for k in range(tries):
         try:
             req = urllib.request.Request(url, headers=UA)
-            return (opener or urllib.request).urlopen(req, timeout=30)
+            if opener is not None:
+                return opener.open(req, timeout=30)
+            return urllib.request.urlopen(req, timeout=30)
         except Exception as e:
             last = e
             time.sleep(1.5 * (k + 1))
