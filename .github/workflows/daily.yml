@@ -21,6 +21,7 @@ concurrency:
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +37,7 @@ jobs:
         run: python scan.py
 
       - name: 構成銘柄の一覧が変わっていれば main にコミット
+        continue-on-error: true            # ここが失敗しても data 枝の更新は止めない
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

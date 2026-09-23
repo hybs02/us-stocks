@@ -31,11 +31,45 @@ BUY_MIN = 70              # 買える点数・持ち続ける点数（月末で�
 PORTFOLIO = 10            # 持つ銘柄数（既定）
 JST = timezone(timedelta(hours=9))
 # NYSE の休場日（月末の判定に使う。2026〜2027）
-NYSE_HOLIDAYS = {
-    "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25", "2026-06-19", "2026-07-03",
-    "2026-09-07", "2026-11-26", "2026-12-25",
-    "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31", "2027-06-18", "2027-07-05",
-    "2027-09-06", "2027-11-25", "2027-12-24"}
+def _easter(y):
+    """グレゴリオ暦の復活祭（Good Friday＝この2日前）"""
+    a, b, c = y % 19, y // 100, y % 100
+    d, e = b // 4, b % 4
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    month = (h + l - 7 * m + 114) // 31
+    day = (h + l - 7 * m + 114) % 31 + 1
+    return date(y, month, day)
+
+
+def nyse_holidays(y):
+    """NYSE の休場日（元日・キング牧師・大統領の日・聖金曜日・戦没者追悼・ジューンティーンス・独立記念日・
+    労働者の日・感謝祭・クリスマス）。土曜なら前の金曜・日曜なら翌月曜に振り替え（元日が土曜の時は振り替えなし）"""
+    def nth(month, wd, n):          # n 番目の曜日（n=-1 は最後）
+        if n > 0:
+            x = date(y, month, 1)
+            x += timedelta(days=(wd - x.weekday()) % 7 + 7 * (n - 1))
+            return x
+        x = date(y + (month == 12), month % 12 + 1, 1) - timedelta(days=1)
+        return x - timedelta(days=(x.weekday() - wd) % 7)
+
+    def obs(x, newyear=False):
+        if x.weekday() == 5:
+            return None if newyear else x - timedelta(days=1)
+        if x.weekday() == 6:
+            return x + timedelta(days=1)
+        return x
+    hs = [obs(date(y, 1, 1), True), nth(1, 0, 3), nth(2, 0, 3), _easter(y) - timedelta(days=2), nth(5, 0, -1),
+          obs(date(y, 6, 19)), obs(date(y, 7, 4)), nth(9, 0, 1), nth(11, 3, 4), obs(date(y, 12, 25))]
+    return {x.isoformat() for x in hs if x}
+
+
+def is_holiday(iso):
+    return iso in nyse_holidays(int(iso[:4]))
 SECTOR_JA = {
     "Information Technology": "情報技術", "Health Care": "ヘルスケア", "Financials": "金融",
     "Consumer Discretionary": "一般消費財", "Communication Services": "通信・メディア",
@@ -192,7 +226,7 @@ def next_trading_day(d):
     x = date.fromisoformat(d)
     while True:
         x += timedelta(days=1)
-        if x.weekday() < 5 and x.isoformat() not in NYSE_HOLIDAYS:
+        if x.weekday() < 5 and not is_holiday(x.isoformat()):
             return x.isoformat()
 
 
@@ -219,7 +253,7 @@ def us_eastern_now():
 
 def last_trading_day(y, m):
     x = date(y + (m == 12), m % 12 + 1, 1) - timedelta(days=1)
-    while x.weekday() >= 5 or x.isoformat() in NYSE_HOLIDAYS:
+    while x.weekday() >= 5 or is_holiday(x.isoformat()):
         x -= timedelta(days=1)
     return x.isoformat()
 
@@ -247,6 +281,8 @@ def pick(cands, held_sec, held_sub, k):
 
 # ---------------- 本体 ----------------
 def main():
+    # 取引中かどうかは『取り始めた時刻』で決める（取り終わりが引けの後でも、取った値は途中の値のことがある）
+    et = us_eastern_now()
     uni = load_universe()
     print(f"対象 {len(uni)}銘柄", flush=True)
     # 前回の結果（GitHub Actions では data 枝から取ってきたもの）。
@@ -260,13 +296,15 @@ def main():
     prev = {s["t"]: s for s in old.get("stocks", [])}
 
     # 1) 全銘柄の日足
-    series, ok = {}, []
+    series, ok, young = {}, [], []
     for i, u in enumerate(uni):
         try:
             s = fetch_daily(u["t"])
             if len(s) >= 300:
                 series[u["t"]] = s
                 ok.append(u)
+            else:
+                young.append(u["t"])          # 上場から日が浅く、1年分の値動きが無い（点数を出せない）
         except Exception:
             pass
         if i % 100 == 0:
@@ -279,8 +317,7 @@ def main():
 
     # 2) 取引日の暦（SPY）と月末
     days = [d for d, _ in spy]
-    et = us_eastern_now()
-    # 最後の日が今日で、まだ引け（16時）前なら取引中＝途中の値
+    # 最後の日が今日で、取り始めた時にまだ引け（16時）前なら取引中＝途中の値
     live = days[-1] == et.date().isoformat() and (et.hour, et.minute) < (16, 15)
     mes = month_ends(days, live)[-13:]           # 直近 13 回の確定した月末
     last_day = days[-1]
@@ -333,9 +370,12 @@ def main():
         fund = {t: s.get("fund", {}) for t, s in prev.items() if s.get("fund")}
     todo = [u for u in need if u["t"] not in fund]
     sess = yahoo_session() if todo else None
-    print("ファンダ取得:", f"{len(todo)}銘柄（使い回し{len(need) - len(todo)}）" if (sess or not todo) else "スキップ", flush=True)
+    print("ファンダ取得:", f"{len(todo)}銘柄（使い回し{len(need) - len(todo)}）" if (sess or not todo) else "取れず（前回の値を使う）", flush=True)
     for u in todo:
-        fund[u["t"]] = fetch_fundamentals(u["t"], sess) if sess else {}
+        fn = fetch_fundamentals(u["t"], sess) if sess else {}
+        if not fn and prev.get(u["t"], {}).get("fund"):
+            fn = prev[u["t"]]["fund"]          # 取れなかった時は前回の値（無ければ空＝未確認）
+        fund[u["t"]] = fn
         if sess:
             time.sleep(0.08)
 
@@ -348,6 +388,7 @@ def main():
         s_now, r6, rt, r12 = now_sc[t]
         f = now_fac[t]
         fn = fund.get(t, {})
+        checked = any(fn.get(k) is not None for k in ("roe", "opm", "de", "per"))   # 財務を確かめられたか
         good, bad = quality_flags(fn)
         me = me_sc.get(t)
         mef = me_fac.get(t) if me_fac else None
@@ -360,7 +401,7 @@ def main():
             "score": round(s_now), "f": {"mom": round(r6), "trend": round(rt), "mom12": round(r12)},
             "me": round(me[0]) if me else None, "hist": hist[t], "elig": elig,
             "prev": prev_score.get(t),
-            "good": good, "bad": bad,
+            "good": good, "bad": bad, "fundOk": checked,
             "fund": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in fn.items() if v is not None},
         }
         parts = []
@@ -391,6 +432,9 @@ def main():
         "note_bias": ("成績の検証値は現在のS&P500構成銘柄で測ったため、実際より良く出ています。"
                       "規則どうしの比較には使えますが、示された利益率をそのまま期待しないでください。"),
         "stocks": stocks,
+        "members": [u["t"] for u in uni],                                  # いまの S&P500 の銘柄
+        "young": young,                                                     # 上場から日が浅く点数を出せない銘柄
+        "missing": [u["t"] for u in uni if u["t"] not in {x["t"] for x in stocks} and u["t"] not in young],   # 今回データが取れなかった銘柄
     }
     try:
         fx = fetch_daily("JPY=X", rng="5d")
@@ -399,7 +443,7 @@ def main():
         pass
     io.open(OUT, "w", encoding="utf-8").write(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
     # チャート用（1年ぶんの週ごとの値）。詳細画面を開いた時だけ読む
-    ch = {"d": [d for d in days[-253::5]], "px": {}}
+    ch = {"d": days[::-5][:51][::-1], "px": {}}
     for s in stocks:
         p = px[s["t"]]
         ds = dates[s["t"]]

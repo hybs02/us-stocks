@@ -201,6 +201,13 @@ function updText(){
   return `${DATA.updated.slice(5).replace("-", "/")} の計算<br>${m >= 60 ? Math.floor(m / 60) + "時間" : ""}${m % 60}分前`;
 }
 setInterval(() => { if(DATA) $("#upd").innerHTML = updText(); }, 60e3);
+// 平日なのに丸1日以上新しい計算が無い＝自動実行が止まっている
+function staleNote(){
+  const t = Date.parse(DATA.updated.replace(" ", "T") + ":00+09:00"), h = (Date.now() - t) / 3600e3;
+  const w = new Date(Date.now() + 9 * 3600e3).getUTCDay();
+  const limit = w === 0 || w === 1 ? 60 : 30;                    // 週末をはさむ時は長めに見る
+  return h > limit ? `<div class="warn">⚠ 最後の計算から${Math.floor(h)}時間たっています（GitHub の自動実行が止まっているか大きく遅れています）。点数は ${esc(DATA.updated)} 時点です。</div>` : "";
+}
 
 async function load(manual = false){
   if(loading){ if(manual) toast("いま読み込み中です…"); return; }
@@ -208,10 +215,13 @@ async function load(manual = false){
   const started = Date.now(), before = DATA && DATA.updated;
   try{
     const d = await getJson("data.json", Date.now(), manual);
-    DATA = d; lastFetch = Date.now(); CHART = null;
-    try{ localStorage.setItem("us_cache", JSON.stringify(DATA)); }catch(e){}
+    lastFetch = Date.now();
     const wait = 500 - (Date.now() - started); if(wait > 0) await new Promise(r => setTimeout(r, wait));   // 押したことが分かるように
-    render();
+    if(!(DATA && d.updated < DATA.updated)){          // ↻ で取った新しい値を、キャッシュの古い値で上書きしない
+      const old = DATA; DATA = d; CHART = null;
+      try{ render(); }catch(err){ DATA = old; throw new Error("表示できませんでした（" + err.message + "）"); }
+      try{ localStorage.setItem("us_cache", JSON.stringify(DATA)); }catch(e){}
+    }
     if(manual) toast(before && d.updated <= before
       ? `いまの表示が最新です（${d.updated.slice(5).replace("-", "/")} の計算）<br><span style="font-weight:400">自動の計算は1日4回（米国の取引中と引け後）</span>`
       : `新しい計算を取り込みました（${d.updated.slice(5).replace("-", "/")}）`);
@@ -233,15 +243,19 @@ document.addEventListener("visibilitychange", () => { if(document.visibilityStat
 // 点数順に埋める（同じ業種5つ・同じ細かい業種2つまで）。S&P500 が月末に 200日線の下なら新規は止める。
 function plan(){
   const R = DATA.rule, M = DATA.market;
-  const sells = [], keeps = [], buys = [];
+  const sells = [], keeps = [], buys = [], waits = [];
   const sec = {}, sub = {};
   hold.forEach(h => {
     const s = byT(h.t);
-    if(!s){ sells.push({h, s:null, why:"S&P500から外れた（買収・入れ替えなど）"}); return; }
+    if(!s){
+      const member = !DATA.members || DATA.members.includes(h.t);
+      if(member){ waits.push({h, why:(DATA.young || []).includes(h.t) ? "上場から日が浅く点数を出せない（1年分の値動きが要る）。売り買いの判断はこのアプリの対象外" : "今回データが取れなかった（判断は次の計算まで保留）"}); return; }
+      sells.push({h, s:null, why:"S&P500から外れた（買収・入れ替えなど）"}); return;
+    }
     if(s.me == null || s.me < R.buyMin){ sells.push({h, s, why:`${mo(DATA.monthEnd)}末の点数が${s.me ?? "—"}点（70未満）`}); return; }
     keeps.push({h, s}); sec[s.sec] = (sec[s.sec] || 0) + 1; sub[s.sub] = (sub[s.sub] || 0) + 1;
   });
-  const slots = Math.max(0, K - keeps.length);
+  const slots = Math.max(0, K - keeps.length - waits.length);
   if(M.onMe && slots){
     const held = new Set(hold.map(h => h.t));
     const cands = DATA.stocks.filter(s => s.elig && !held.has(s.t)).sort((a, b) => b.me - a.me);
@@ -251,9 +265,18 @@ function plan(){
       buys.push(s); sec[s.sec] = (sec[s.sec] || 0) + 1; sub[s.sub] = (sub[s.sub] || 0) + 1;
     }
   }
-  return {sells, keeps, buys, slots};
+  return {sells, keeps, buys, slots, waits};
 }
 function sharesFor(s){ if(!(balance > 0)) return null; return Math.floor(balance / K / (s.px * rate())); }
+// 資金が少なくて1株も買えない時の書き方
+function sharesText(s){
+  const n = sharesFor(s);
+  if(n == null) return "";
+  if(n >= 1) return `・<b style="color:var(--accent)">${n}株</b>`;
+  return `・<span style="color:#ffb3ba">資金の1/${K}では1株（${yen(s.px * rate())}）に届かない</span>`;
+}
+// 何も持っていない人が新しく始める時の組み合わせ（設定の銘柄数 K・業種の上限つき）
+function starter(){ const h = hold; hold = []; try{ return plan().buys; } finally{ hold = h; } }
 
 // ================= 描画 =================
 function render(){
@@ -265,8 +288,9 @@ function render(){
 }
 function regimeBox(){
   const M = DATA.market;
+  const st = staleNote();
   const now = M.onNow === M.onMe ? "" : `<br><span class="note">いま（${jd(DATA.asof)}）は S&P500 が200日線の${M.onNow ? "上" : "下"}（${sgn(M.devNow)}%）。次の月末に${M.onNow ? "上" : "下"}なら${M.onNow ? "新規の買いを再開" : "新規を止める"}。</span>`;
-  return `<div class="regime ${M.onMe ? "r-on" : "r-off"}">
+  return st + `<div class="regime ${M.onMe ? "r-on" : "r-off"}">
     <b class="h">${M.onMe ? "● 新しく買ってよい月" : "▲ 今月は新しく買わない"}</b><br>
     ${mo(DATA.monthEnd)}末の S&P500 は200日線の${M.onMe ? "上" : "下"}（${sgn(M.devMe)}%）。${M.onMe ? "" : "持ち株は70点のルールどおりに。空いた枠は現金で待つ。"}${now}
     <div class="note" style="margin-top:4px;">検証（20年）では、200日線の下で新規を止めると年率はほぼ同じで、最大の下落が−58%→−33%に縮みました。</div></div>`;
@@ -289,8 +313,11 @@ function daysSinceMonthEnd(){ return Math.round((Date.now() - Date.parse(DATA.mo
 function lateNote(){
   const d = daysSinceMonthEnd();
   if(d <= 7) return "";
-  return `<div class="banner">${mo(DATA.monthEnd)}末から${d}日たっています。規則は「月初めに見直して、次の月末まで動かない」前提で検証しました。
-    これから始める・見直すなら、次の見直し（${jd(DATA.nextMonthEnd)}の終値の翌朝）まで待つと規則どおりになります。</div>`;
+  return hold.length
+    ? `<div class="banner">${mo(DATA.monthEnd)}末から${d}日たっています。まだこの見直しをしていないなら、<b>「売る」はいま売ってください</b>（遅れるほど規則から外れます）。
+        「買う」は、次の見直し（${jd(DATA.nextMonthEnd)}の終値の翌朝）まで待っても構いません。</div>`
+    : `<div class="banner">${mo(DATA.monthEnd)}末から${d}日たっています。規則は「月初めに買って、次の月末に見直す」前提で検証しました。
+        これから始めるなら、次の見直し（${jd(DATA.nextMonthEnd)}の終値の翌朝）で買うと規則どおりです（今すぐ始めても大きな差はありませんが、検証していない形です）。</div>`;
 }
 function renderTodo(){
   const P = plan(), M = DATA.market;
@@ -309,16 +336,17 @@ function renderTodo(){
   }
   html += lateNote();
   if(!hold.length){
-    const model = (DATA.model || []).map(byT).filter(Boolean);
+    const model = starter();
     html += `<div class="card"><h2>はじめるなら この${model.length}銘柄 <small>${mo(DATA.monthEnd)}末・業種を分散</small></h2>
-      ${M.onMe ? model.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${sharesFor(s) != null ? `・<b style="color:var(--accent)">${sharesFor(s)}株</b>` : ""}`)).join("")
+      ${M.onMe ? model.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${s.fundOk === false ? '・<span style="color:var(--accent)">財務未確認</span>' : ""}${sharesText(s)}`)).join("")
                : `<div class="note">今月は S&P500 が200日線の下なので、<b>新しく買わずに待つ</b>のが検証上の正解です。</div>`}
       <div class="note" style="margin-top:8px;">資金を${K}等分して1銘柄ずつ買う想定です（銘柄数と資金は「保有」タブの下で設定）。持ったら<b>「保有」に登録</b>すると、毎月の売り時がここに出ます。</div>
       ${reviewHead()}</div>`;
   }else{
     const sl = P.sells.map(x => x.s ? row(x.s, null, `<span style="color:#ffb3ba">${esc(x.why)}</span>`)
       : `<div class="row"><div class="tk">${x.h.t}</div><div class="nm">${esc(x.why)}</div></div>`).join("");
-    const bl = P.buys.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${sharesFor(s) != null ? `・<b style="color:var(--accent)">${sharesFor(s)}株</b>` : ""}`)).join("");
+    const bl = P.buys.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${s.fundOk === false ? '・<span style="color:var(--accent)">財務未確認</span>' : ""}${sharesText(s)}`)).join("");
+    const wl = P.waits.map(x => `<div class="row"><div class="tk">${x.h.t}</div><div class="nm">${esc(x.why)}</div></div>`).join("");
     const kl = P.keeps.map(x => row(x.s, null, `${esc(x.s.secJa)}・<span class="plus">持ち続ける</span>`)).join("");
     const nothing = !P.sells.length && !P.buys.length;
     html += `<div class="card"><h2>${mo(DATA.monthEnd)}末の見直し <small>持ち株${hold.length}・目標${K}銘柄</small></h2>
@@ -327,6 +355,7 @@ function renderTodo(){
       ${P.buys.length ? `<div class="grp b"><span>買う ${P.buys.length}</span><span>月末の点数</span></div>${bl}` : ""}
       ${!M.onMe && P.slots ? `<div class="grp b"><span>買う（空き${P.slots}枠）</span></div><div class="note">今月は新しく買わない月。空いた枠は現金で待ちます。</div>` : ""}
       ${P.keeps.length ? `<div class="grp k"><span>持ち続ける ${P.keeps.length}</span><span>月末の点数</span></div>${kl}` : ""}
+      ${P.waits.length ? `<div class="grp k"><span>判断を保留 ${P.waits.length}</span></div>${wl}` : ""}
       <div style="margin-top:8px;">${reviewHead()}</div>
       <button class="btn" id="done">売り買いを済ませた（次の見直しまで隠す）</button></div>`;
     const warn = P.keeps.filter(x => x.s.score < 70);
@@ -338,19 +367,19 @@ function renderTodo(){
 }
 function renderCand(){
   const el = DATA.stocks.filter(s => s.elig).sort((a, b) => b.me - a.me);
-  const model = new Set(DATA.model || []);
+  const model = new Set(starter().map(s => s.t));
   const heldSet = new Set(hold.map(h => h.t));
   app().innerHTML = regimeBox() + `<div class="card"><h2>買える銘柄 <small>${el.length}銘柄・${mo(DATA.monthEnd)}末の点数順</small></h2>
-    ${el.map((s, i) => row(s, i + 1, `${model.has(s.t) ? '<span class="chip acc">10選</span>' : ""}${heldSet.has(s.t) ? '<span class="chip buy">保有中</span>' : ""}${esc(s.secJa)}`)).join("")}
+    ${el.map((s, i) => row(s, i + 1, `${model.has(s.t) ? `<span class="chip acc">${K}選</span>` : ""}${heldSet.has(s.t) ? '<span class="chip buy">保有中</span>' : ""}${s.fundOk === false ? '<span class="chip">財務未確認</span>' : ""}${esc(s.secJa)}`)).join("")}
     <div class="note" style="margin-top:8px;">条件：月末の点数70以上・200日線の上・財務に地雷（営業赤字・ROEマイナス・借金過多・PER100倍超）なし。
-      「10選」は業種の偏りを抑えて（同じ業種5つ・同じ細かい業種2つまで）10銘柄選んだ組み合わせ。右の大きい数字が月末の点数、小さい数字がいまの点数。</div></div>`;
+      「${K}選」は業種の偏りを抑えて（同じ業種5つ・同じ細かい業種2つまで）${K}銘柄選んだ組み合わせ（銘柄数は「保有」タブで変えられる）。${DATA.stocks.some(s => s.elig && s.fundOk === false) ? "「財務未確認」は、財務データが取れず地雷チェックができていない銘柄。" : ""}右の大きい数字が月末の点数、小さい数字がいまの点数。</div></div>`;
   bindRows();
 }
 function renderHold(){
   let tot = 0, totCost = 0;
   const rows = hold.map((h, k) => {
     const s = byT(h.t);
-    if(!s) return `<div class="row"><div class="tk">${h.t}</div><div class="nm">S&P500から外れた可能性（データ無し）</div></div>`;
+    if(!s) return `<div class="row"><div class="tk">${h.t}</div><div class="nm">${!DATA.members || DATA.members.includes(h.t) ? "今回データが取れなかった（次の計算で戻る）" : "S&P500から外れた（売りを検討）"}</div></div>`;
     const val = h.sh * s.px, pl = h.cost > 0 && h.sh > 0 ? (s.px - h.cost) * h.sh : null;
     tot += val; if(h.cost > 0) totCost += h.cost * h.sh;
     const st = s.me == null || s.me < 70 ? '<span class="chip sell">月末で売り</span>' : (s.score < 70 ? '<span class="chip acc">70割れ注意</span>' : '<span class="chip buy">持ち続ける</span>');
@@ -410,7 +439,7 @@ async function renderDetail(t){
   if(!s){ sel = null; return render(); }
   const h = hold.find(x => x.t === t);
   const R = DATA.rule;
-  const status = s.elig ? '<span class="chip buy">買える（月末70点以上）</span>'
+  const status = s.elig ? '<span class="chip buy">買える（月末70点以上）</span>' + (s.fundOk === false ? '<span class="chip acc">財務未確認</span>' : '')
     : (s.me != null && s.me >= 70 && s.bad && s.bad.length ? '<span class="chip sell">点数は高いが財務に注意</span>'
     : (s.me != null && s.me >= 70 ? '<span class="chip acc">点数は70以上（200日線の下）</span>' : '<span class="chip">月末の点数が70未満</span>'));
   const f = s.fund || {};
