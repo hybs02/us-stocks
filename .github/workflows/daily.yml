@@ -1,15 +1,22 @@
 name: daily-scan
 
-# 米国市場のクローズ後に走らせる。
-# 米東部16:00クローズ → UTC 21:00(夏) / 22:00(冬)。余裕をみて UTC 23:10 に実行。
-# （日本時間の朝8時ごろ。起きたら結果ができている）
+# 1日4回（米国の取引中2回・引け後2回）採点し直す。時刻に意味は持たせず、ただ最新にする。
+#   UTC 15:41 / 18:41 … 取引中（途中の値。月末の点数には使わない＝scan.py の live 判定）
+#   UTC 21:41 / 01:41 … 引け後（遅れて入る終値も拾う）
+# data.json・chart.json は main ではなく「data」枝に毎回上書き（force push）する。
+# main に何度もコミットするとリポジトリの履歴が膨らみ続けるため。
+# 画面は https://raw.githubusercontent.com/hybs02/us-stocks/data/data.json を読む。
 on:
   schedule:
-    - cron: "10 23 * * 1-5"
-  workflow_dispatch:        # 手動実行も可能にする
+    - cron: "41 1,15,18,21 * * 1-5"
+  workflow_dispatch:
 
 permissions:
-  contents: write           # data.json をコミットするため
+  contents: write
+
+concurrency:
+  group: daily-scan
+  cancel-in-progress: false
 
 jobs:
   scan:
@@ -17,22 +24,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: 前回の結果を data 枝から取る（前日比・財務の使い回し用）
+        run: |
+          git fetch -q origin data && git show origin/data:data.json > data.json || rm -f data.json
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: 銘柄をスキャンして data.json を作る
+      - name: 銘柄を採点して data.json を作る
         run: python scan.py
 
-      - name: 結果をコミット
+      - name: 構成銘柄の一覧が変わっていれば main にコミット
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data.json chart.json sp500.csv
-          if git diff --staged --quiet; then
-            echo "変更なし"
-          else
-            git commit -m "毎日のスキャン結果を更新 ($(date -u +%Y-%m-%d))"
-            git pull --rebase
-            git push
+          git add sp500.csv
+          if ! git diff --staged --quiet; then
+            git commit -qm "S&P500 の構成銘柄を更新"
+            git pull -q --rebase
+            git push -q
           fi
+
+      - name: data 枝に上書きする
+        run: |
+          git checkout -q --orphan data-new
+          git rm -rq --cached .
+          git add -f data.json chart.json
+          git commit -qm "データ $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
+          git push -fq origin data-new:data

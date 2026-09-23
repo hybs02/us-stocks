@@ -196,12 +196,25 @@ def next_trading_day(d):
             return x.isoformat()
 
 
-def month_ends(days):
-    """取引日の並びから、各月の最後の取引日。最後の月は『翌営業日が翌月』の時だけ確定扱い"""
+def month_ends(days, live=False):
+    """取引日の並びから、各月の最後の取引日。最後の日は『取引が終わっていて、翌営業日が翌月』の時だけ確定扱い
+    （月末の取引中に走った時、途中の値を月末の点数にしないため）"""
     out = [a for a, b in zip(days, days[1:]) if a[:7] != b[:7]]
-    if days and next_trading_day(days[-1])[:7] != days[-1][:7]:
+    if days and not live and next_trading_day(days[-1])[:7] != days[-1][:7]:
         out.append(days[-1])
     return out
+
+
+def us_eastern_now():
+    """米国東部の今（夏時間＝3月第2日曜〜11月第1日曜）"""
+    u = datetime.now(timezone.utc)
+    y = u.year
+    mar = date(y, 3, 8); dst_start = mar + timedelta(days=(6 - mar.weekday()) % 7)
+    nov = date(y, 11, 1); dst_end = nov + timedelta(days=(6 - nov.weekday()) % 7)
+    start = datetime(y, dst_start.month, dst_start.day, 7, tzinfo=timezone.utc)   # 2時 EST
+    end = datetime(y, dst_end.month, dst_end.day, 6, tzinfo=timezone.utc)         # 2時 EDT
+    off = -4 if start <= u < end else -5
+    return u.astimezone(timezone(timedelta(hours=off)))
 
 
 def last_trading_day(y, m):
@@ -236,12 +249,15 @@ def pick(cands, held_sec, held_sub, k):
 def main():
     uni = load_universe()
     print(f"対象 {len(uni)}銘柄", flush=True)
-    prev = {}
+    # 前回の結果（GitHub Actions では data 枝から取ってきたもの）。
+    # 「前日比の矢印」と「財務は1日1回だけ取る」のに使う
+    old = {}
     if os.path.exists(OUT):
         try:
-            prev = {s["t"]: s for s in json.load(io.open(OUT, encoding="utf-8")).get("stocks", [])}
+            old = json.load(io.open(OUT, encoding="utf-8"))
         except Exception:
-            prev = {}
+            old = {}
+    prev = {s["t"]: s for s in old.get("stocks", [])}
 
     # 1) 全銘柄の日足
     series, ok = {}, []
@@ -263,8 +279,14 @@ def main():
 
     # 2) 取引日の暦（SPY）と月末
     days = [d for d, _ in spy]
-    mes = month_ends(days)[-13:]                 # 直近 13 回の確定した月末
+    et = us_eastern_now()
+    # 最後の日が今日で、まだ引け（16時）前なら取引中＝途中の値
+    live = days[-1] == et.date().isoformat() and (et.hour, et.minute) < (16, 15)
+    mes = month_ends(days, live)[-13:]           # 直近 13 回の確定した月末
     last_day = days[-1]
+    # 前日比：前回と日付が違えば前回の点数が「前日」、同じ日の中の更新なら前回の «前日» を引き継ぐ
+    same_day = old.get("asof") == last_day
+    prev_score = {t: (s.get("prev") if same_day else s.get("score")) for t, s in prev.items()}
 
     px = {u["t"]: [c for _, c in series[u["t"]]] for u in ok}
     dates = {u["t"]: [d for d, _ in series[u["t"]]] for u in ok}
@@ -303,11 +325,16 @@ def main():
     breadth = round(sum(1 for t in now_fac if now_fac[t] and now_fac[t]["trend"] > 0) / max(1, len(now_fac)) * 100)
 
     # 4) ファンダ（点数 60 以上＝買い候補の周辺だけ。全部取ると時間が掛かる）
+    #    財務は1日に何度も変わらないので、その日に取ってあれば使い回す（Yahoo への負担を減らす）
     need = [u for u in ok if (now_sc.get(u["t"], (0,))[0] >= 60 or (me_sc.get(u["t"], (0,))[0] >= 60))]
-    sess = yahoo_session()
-    print("ファンダ取得:", f"{len(need)}銘柄" if sess else "スキップ(価格要因のみで判定)", flush=True)
+    today = datetime.now(timezone.utc).date().isoformat()
     fund = {}
-    for u in need:
+    if old.get("fundAt") == today:
+        fund = {t: s.get("fund", {}) for t, s in prev.items() if s.get("fund")}
+    todo = [u for u in need if u["t"] not in fund]
+    sess = yahoo_session() if todo else None
+    print("ファンダ取得:", f"{len(todo)}銘柄（使い回し{len(need) - len(todo)}）" if (sess or not todo) else "スキップ", flush=True)
+    for u in todo:
         fund[u["t"]] = fetch_fundamentals(u["t"], sess) if sess else {}
         if sess:
             time.sleep(0.08)
@@ -332,7 +359,7 @@ def main():
             "chg6m": round(f["mom6"] * 100, 1), "trend": round(f["trend"] * 100, 1),
             "score": round(s_now), "f": {"mom": round(r6), "trend": round(rt), "mom12": round(r12)},
             "me": round(me[0]) if me else None, "hist": hist[t], "elig": elig,
-            "prev": prev.get(t, {}).get("score"),
+            "prev": prev_score.get(t),
             "good": good, "bad": bad,
             "fund": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in fn.items() if v is not None},
         }
@@ -353,7 +380,7 @@ def main():
 
     out = {
         "updated": datetime.now(timezone.utc).astimezone(JST).strftime("%Y-%m-%d %H:%M"),
-        "asof": last_day, "monthEnd": me_date, "monthEnds": mes,
+        "asof": last_day, "live": live, "fundAt": today, "monthEnd": me_date, "monthEnds": mes,
         "nextMonthEnd": next_month_end(me_date),
         "universe": len(stocks),
         "usdjpy": None,

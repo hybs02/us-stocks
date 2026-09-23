@@ -110,7 +110,7 @@
     <button data-v="find">探す</button>
   </div>
   <div id="app"><div class="loading">読み込み中…</div></div>
-  <div class="foot">毎晩（米国市場の終了後）自動で計算・APIキー不要<br>※参考情報です。最終判断は自己責任で。</div>
+  <div class="foot">1日4回（米国の取引中と引け後）自動で計算し直しています・APIキー不要<br>※参考情報です。最終判断は自己責任で。</div>
 <script>
 "use strict";
 const $ = s => document.querySelector(s);
@@ -144,6 +144,16 @@ const JA = {AAPL:"アップル",MSFT:"マイクロソフト",NVDA:"エヌビデ�
   ORLY:"オライリー",AZO:"オートゾーン",TJX:"TJX",ROST:"ロス・ストアーズ",KR:"クローガー",DG:"ダラー・ジェネラル",BBY:"ベスト・バイ"};
 
 let DATA = null, CHART = null;
+// 結果は自動更新が専用の枝（data）に上書きする。リポジトリの履歴を膨らませないため
+const RAW = "https://raw.githubusercontent.com/hybs02/us-stocks/data/";
+async function getJson(name, bust){
+  let err = null;
+  for(const u of [RAW + name, name]){
+    try{ const r = await fetch(u + "?t=" + bust, {cache:"no-store"}); if(r.ok) return await r.json(); err = new Error(name + " " + r.status); }
+    catch(e){ err = e; }
+  }
+  throw err;
+}
 let balance = +store.get("us_bal", 0) || 0;
 let K = +store.get("us_k", 10) || 10;
 let hold = store.get("us_hold", null);
@@ -166,9 +176,8 @@ const nameOf = s => JA[s.t] ? `${JA[s.t]}` : s.n;
 async function load(){
   if(loading) return; loading = true; $("#refresh").innerHTML = '<span class="spin">↻</span>';
   try{
-    const r = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
-    if(!r.ok) throw new Error("data.json " + r.status);
-    DATA = await r.json(); lastFetch = Date.now();
+    DATA = await getJson("data.json", Date.now()); lastFetch = Date.now(); CHART = null;
+    try{ localStorage.setItem("us_cache", JSON.stringify(DATA)); }catch(e){}
     render();
   }catch(e){
     if(!DATA) app().innerHTML = `<div class="warn">データを読み込めませんでした（${esc(e.message)}）。通信を確認して ↻ を押してください。</div>`;
@@ -177,10 +186,10 @@ async function load(){
 }
 async function loadChart(){
   if(CHART) return CHART;
-  try{ const r = await fetch("chart.json?t=" + DATA.updated.replace(/\D/g, "")); if(r.ok) CHART = await r.json(); }catch(e){}
+  try{ CHART = await getJson("chart.json", DATA.updated.replace(/\D/g, "")); }catch(e){}
   return CHART;
 }
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && Date.now() - lastFetch > 30*60e3) load(); });
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && Date.now() - lastFetch > 10*60e3) load(); });
 
 // ================= 今月の見直し（ここ1か所で決める） =================
 // 月末の点数で：持ち株のうち 70 未満は売る → 空いた枠を、70以上・200日線の上・地雷なしの銘柄で
@@ -378,7 +387,7 @@ async function renderDetail(t){
       <div class="note">${s.t}　${esc(s.n)}${JA[s.t] ? `（${JA[s.t]}）` : ""}</div>
       <div style="display:flex; align-items:baseline; gap:10px;"><span class="big">${usd(s.px)}</span>
         <span class="${s.chg1d >= 0 ? "plus" : "minus"}">${sgn(s.chg1d)}%</span></div>
-      <div class="note">${esc(s.secJa)}・${esc(s.sub)}（${jd(DATA.asof)} 終値）</div>
+      <div class="note">${esc(s.secJa)}・${esc(s.sub)}（${jd(DATA.asof)} ${DATA.live ? "取引中の値" : "終値"}）</div>
       <div style="margin-top:8px;">${status}${h ? '<span class="chip acc">保有中</span>' : ""}</div>
     </div>
     <div class="card"><h2>点数 <small>月末 ${s.me ?? "—"}点・いま ${s.score}点</small></h2>
@@ -443,7 +452,9 @@ function drawChart(d, v){
 document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { view = b.dataset.v; sel = null; store.set("us_view", view); render(); window.scrollTo(0, 0); }));
 $("#refresh").addEventListener("click", load);
 // 前回保存した結果があれば先に出してから、最新を取りに行く（開いた瞬間に表示）
-if("caches" in window) caches.match("data.json").then(r => r && r.json()).then(d => { if(d && !DATA){ DATA = d; render(); } }).catch(() => {});
+try{ const c = JSON.parse(localStorage.getItem("us_cache") || "null"); if(c && c.stocks){ DATA = c; render(); } }catch(e){}
+// 開いている間は 15 分ごとに最新を取りに行く
+setInterval(() => { if(document.visibilityState === "visible") load(); }, 15 * 60e3);
 load();
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
