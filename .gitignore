@@ -1,3 +1,5 @@
 scan_log.txt
 prices.json
 __pycache__/
+research/cache/
+research/*.log

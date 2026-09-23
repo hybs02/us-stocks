@@ -2,281 +2,450 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0f1420">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="米国株">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="apple-touch-icon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>米国株判定</title>
 <style>
   :root{
-    --bg:#0f1420; --card:#1a2233; --line:#2a3550;
+    --bg:#0f1420; --card:#1a2233; --card2:#141b2a; --line:#2a3550;
     --buy:#23c483; --sell:#ff5d6c; --neu:#8896b3;
     --text:#e8edf7; --sub:#9aa7c2; --accent:#ffcf4a;
+    --buyBg:rgba(35,196,131,.14); --sellBg:rgba(255,93,108,.14); --accBg:rgba(255,207,74,.12);
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  body{margin:0; background:var(--bg); color:var(--text);
-    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Meiryo",sans-serif;
-    padding:14px; max-width:520px; margin:0 auto;}
-  h1{font-size:18px; margin:4px 0 10px; text-align:center;}
-  .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
-    padding:14px; margin-bottom:12px;}
-  .tabs{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px;}
-  .tabs button{padding:10px 0; border:1px solid var(--line); background:var(--card);
-    color:var(--text); border-radius:10px; font-size:13px; font-weight:700;}
+  html{background:var(--bg);}
+  body{margin:0 auto; background:var(--bg); color:var(--text); max-width:520px;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Meiryo",sans-serif;
+    padding:calc(10px + env(safe-area-inset-top)) 14px calc(24px + env(safe-area-inset-bottom));
+    font-size:14px; line-height:1.55; -webkit-text-size-adjust:100%;}
+  button,input,select{font:inherit; color:inherit;}
+  .top{display:flex; align-items:center; gap:8px; margin:2px 0 10px;}
+  .top h1{font-size:18px; margin:0; flex:1;}
+  .top .upd{font-size:11px; color:var(--sub); text-align:right; line-height:1.3;}
+  .iconbtn{border:1px solid var(--line); background:var(--card); border-radius:10px; min-width:40px; height:36px; font-weight:700;}
+  .spin{display:inline-block; animation:spin 1s linear infinite;} @keyframes spin{to{transform:rotate(360deg);}}
+  .tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px;}
+  .tabs button{padding:10px 0; border:1px solid var(--line); background:var(--card); border-radius:10px; font-size:13px; font-weight:700;}
   .tabs button.on{background:var(--accent); color:#1a1300; border-color:var(--accent);}
-  .regime{border-radius:12px; padding:10px 12px; font-size:12.5px; margin-bottom:12px;
-    line-height:1.6; font-weight:700;}
-  .r-on{background:rgba(35,196,131,.14); border:1px solid var(--buy); color:var(--buy);}
-  .r-off{background:rgba(255,93,108,.14); border:1px solid var(--sell); color:#ffb3ba;}
-  .row{display:flex; align-items:center; gap:9px; padding:11px 6px;
-    border-bottom:1px solid var(--line); cursor:pointer;}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px;}
+  .card h2{font-size:14px; margin:0 0 8px; color:var(--accent); display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+  .card h2 small{font-size:11px; color:var(--sub); font-weight:600;}
+  .regime{border-radius:14px; padding:12px 14px; margin-bottom:12px; font-size:13px; line-height:1.6;}
+  .r-on{background:var(--buyBg); border:1px solid var(--buy);}
+  .r-off{background:var(--sellBg); border:1px solid var(--sell);}
+  .regime b.h{font-size:15px;}
+  .r-on b.h{color:var(--buy);} .r-off b.h{color:#ffb3ba;}
+  .note{font-size:12px; color:var(--sub); line-height:1.65;}
+  .note b{color:var(--text);}
+  .banner{background:var(--accBg); border:1px solid var(--accent); color:var(--accent); border-radius:12px; padding:10px 12px; font-size:12.5px; line-height:1.6; margin-bottom:12px;}
+  .warn{background:var(--sellBg); border:1px solid var(--sell); color:#ffb3ba; border-radius:12px; padding:10px 12px; font-size:12.5px; line-height:1.6; margin-bottom:12px; font-weight:600;}
+  .row{display:flex; align-items:center; gap:9px; padding:10px 4px; border-bottom:1px solid var(--line); cursor:pointer; min-height:50px;}
   .row:last-child{border-bottom:none;}
-  .row:active{background:#0c111c;}
-  .rk{flex:0 0 22px; text-align:center; font-size:12px; color:var(--sub); font-weight:700;}
-  .tk{flex:0 0 62px; font-weight:800; font-size:14px;}
-  .nm{flex:1; font-size:11.5px; color:var(--sub); overflow:hidden;
-    text-overflow:ellipsis; white-space:nowrap;}
-  .sc{flex:0 0 46px; text-align:right; font-weight:800; font-size:15px;}
-  .s-hi{color:var(--buy);} .s-mid{color:var(--accent);} .s-lo{color:var(--neu);}
-  .bar{height:7px; background:#0c111c; border-radius:4px; overflow:hidden; margin-top:3px;}
-  .bar i{display:block; height:100%; background:var(--accent);}
-  .fac{display:flex; align-items:center; gap:8px; font-size:11.5px; margin:7px 0;}
-  .fac .fl{flex:0 0 84px; color:var(--sub);}
-  .fac .fb{flex:1;}
-  .fac .fv{flex:0 0 28px; text-align:right; color:var(--sub); font-size:11px;}
-  .big{font-size:26px; font-weight:800; text-align:center;}
-  .sub{font-size:11.5px; color:var(--sub); text-align:center;}
-  .fnote{font-size:11.5px; color:var(--sub); line-height:1.7; margin-top:6px;}
-  .kv{display:flex; justify-content:space-between; padding:8px 0;
-    border-bottom:1px solid var(--line); font-size:12.5px;}
+  .row:active{background:var(--card2);}
+  .rk{flex:0 0 20px; text-align:center; font-size:12px; color:var(--sub); font-weight:700;}
+  .tk{flex:0 0 64px; font-weight:800; font-size:14px; line-height:1.2;}
+  .tk small{display:block; font-size:10.5px; color:var(--sub); font-weight:600;}
+  .nm{flex:1; min-width:0; font-size:12px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .nm b{color:var(--text); font-weight:600;}
+  .sc{flex:0 0 auto; text-align:right; font-weight:800; font-size:15px; line-height:1.15;}
+  .sc small{display:block; font-size:10.5px; font-weight:600; color:var(--sub);}
+  .hi{color:var(--buy);} .mid{color:var(--accent);} .lo{color:var(--neu);}
+  .plus{color:var(--buy);} .minus{color:var(--sell);}
+  .chip{display:inline-block; font-size:11px; font-weight:800; padding:2px 7px; border-radius:7px; background:rgba(136,150,179,.18); color:var(--sub); margin-right:4px; white-space:nowrap;}
+  .chip.buy{background:rgba(35,196,131,.22); color:var(--buy);}
+  .chip.sell{background:rgba(255,93,108,.22); color:#ffb3ba;}
+  .chip.acc{background:var(--accBg); color:var(--accent);}
+  .grp{font-size:12px; font-weight:800; margin:12px 0 2px; padding-bottom:4px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between;}
+  .grp.s{color:#ffb3ba;} .grp.b{color:var(--buy);} .grp.k{color:var(--sub);}
+  .back{background:none; border:none; color:var(--accent); font-size:14px; font-weight:700; padding:8px 0; margin-bottom:4px;}
+  .big{font-size:28px; font-weight:800;}
+  .kv{display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
   .kv:last-child{border-bottom:none;}
-  .kv b{color:var(--accent);}
-  .back{background:none; border:none; color:var(--accent); font-size:13px;
-    font-weight:700; padding:6px 0; margin-bottom:6px;}
-  .loading{text-align:center; padding:36px; color:var(--sub);}
-  .err{color:var(--sell); text-align:center; padding:16px; font-size:13px; line-height:1.7;}
-  .warn{background:rgba(255,93,108,.14); border:1px solid var(--sell); color:#ffb3ba;
-    border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.6;
-    margin-bottom:12px; font-weight:600;}
-  .banner{background:rgba(255,207,74,.12); border:1px solid var(--accent); color:var(--accent);
-    border-radius:12px; padding:10px 12px; font-size:12px; line-height:1.6; margin-bottom:12px;}
-  details{margin-bottom:12px; font-size:12px; color:var(--sub);}
-  summary{cursor:pointer; color:var(--accent); font-weight:700; padding:6px 0;}
-  .keybox{display:flex; gap:6px; margin-bottom:8px;}
-  .keybox input{flex:1; padding:9px; border-radius:10px; border:1px solid var(--line);
-    background:#0c111c; color:var(--text); font-size:13px;}
-  .keybox select{padding:9px; border-radius:10px; border:1px solid var(--line);
-    background:#0c111c; color:var(--text); font-size:13px; font-weight:700;}
-  .foot{font-size:10.5px; color:var(--sub); text-align:center; margin-top:8px; line-height:1.6;}
-  .pill{display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:6px;
-    background:rgba(136,150,179,.2); color:var(--sub); margin-right:4px;}
-  .p-good{background:rgba(35,196,131,.2); color:var(--buy);}
-  .p-bad{background:rgba(255,93,108,.2); color:#ffb3ba;}
+  .kv span:first-child{color:var(--sub);}
+  .kv b{text-align:right;}
+  .fac{display:flex; align-items:center; gap:8px; font-size:12px; margin:8px 0;}
+  .fac .fl{flex:0 0 96px; color:var(--sub);}
+  .fac .fb{flex:1; height:8px; background:#0c111c; border-radius:4px; overflow:hidden;}
+  .fac .fb i{display:block; height:100%; background:var(--accent);}
+  .fac .fv{flex:0 0 26px; text-align:right; color:var(--sub);}
+  .hbars{display:flex; align-items:flex-end; gap:3px; height:64px; margin:6px 0 2px; position:relative;}
+  .hbars i{flex:1; border-radius:3px 3px 0 0; background:#3a4763;}
+  .hbars i.ok{background:var(--buy);}
+  .hbars .line{position:absolute; left:0; right:0; border-top:1px dashed var(--accent); opacity:.7;}
+  .hlab{display:flex; justify-content:space-between; font-size:10.5px; color:var(--sub);}
+  .field{display:flex; align-items:center; gap:8px; margin:8px 0;}
+  .field label{flex:0 0 116px; font-size:12.5px; color:var(--sub);}
+  .field input,.field select{flex:1; min-width:0; padding:10px; border-radius:10px; border:1px solid var(--line); background:#0c111c; font-size:16px; font-weight:700;}
+  .search{width:100%; padding:12px; border-radius:12px; border:1px solid var(--line); background:#0c111c; font-size:16px; margin-bottom:10px;}
+  .btn{display:block; width:100%; padding:13px; border-radius:12px; border:1px solid var(--accent); background:var(--accent); color:#1a1300; font-weight:800; font-size:15px; margin-top:10px;}
+  .btn.ghost{background:transparent; color:var(--accent);}
+  .btn.red{background:transparent; color:#ffb3ba; border-color:var(--sell);}
+  canvas{width:100%; display:block;}
+  details.card > summary{cursor:pointer; color:var(--accent); font-weight:700; list-style:none; display:flex; justify-content:space-between;}
+  details.card > summary::after{content:"＋"; color:var(--sub);}
+  details.card[open] > summary::after{content:"－";}
+  details.card > summary::-webkit-details-marker{display:none;}
+  details.card[open] > summary{margin-bottom:8px;}
+  .foot{font-size:11px; color:var(--sub); text-align:center; margin-top:10px; line-height:1.7;}
+  .loading{text-align:center; padding:40px 0; color:var(--sub);}
 </style>
 </head>
 <body>
-  <h1>米国株判定</h1>
-  <div class="tabs">
-    <button id="tabBuy" class="on">買い候補</button>
-    <button id="tabHold">保有チェック</button>
-    <button id="tabSet">⚙ 設定</button>
+  <div class="top">
+    <h1>米国株判定</h1>
+    <div class="upd" id="upd"></div>
+    <button class="iconbtn" id="refresh" aria-label="更新">↻</button>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-v="todo" class="on">やること</button>
+    <button data-v="cand">候補</button>
+    <button data-v="hold">保有</button>
+    <button data-v="find">探す</button>
   </div>
   <div id="app"><div class="loading">読み込み中…</div></div>
-  <div class="foot">※参考情報です。最終判断は自己責任で。</div>
+  <div class="foot">毎晩（米国市場の終了後）自動で計算・APIキー不要<br>※参考情報です。最終判断は自己責任で。</div>
 <script>
-// データはGitHub Actionsが毎晩作る data.json を読むだけ（APIキー不要）
-let DATA=null, VIEW="buy", SEL=null;
-let balance = parseFloat(localStorage.getItem("us_bal")) || 0;
-let posPct  = parseFloat(localStorage.getItem("us_pos")) || 5;
-let held    = JSON.parse(localStorage.getItem("us_held") || "[]");
+"use strict";
+const $ = s => document.querySelector(s);
+const app = () => $("#app");
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+// よく知られた銘柄の日本語名（検索と表示用）
+const JA = {AAPL:"アップル",MSFT:"マイクロソフト",NVDA:"エヌビディア",AMZN:"アマゾン",GOOGL:"アルファベット（グーグル）",GOOG:"アルファベット（グーグル）",
+  META:"メタ（フェイスブック）",TSLA:"テスラ",AVGO:"ブロードコム","BRK-B":"バークシャー・ハサウェイ",JPM:"JPモルガン",V:"ビザ",MA:"マスターカード",
+  UNH:"ユナイテッドヘルス",XOM:"エクソンモービル",JNJ:"ジョンソン・エンド・ジョンソン",PG:"P&G",HD:"ホーム・デポ",COST:"コストコ",LLY:"イーライリリー",
+  ABBV:"アッヴィ",MRK:"メルク",KO:"コカ・コーラ",PEP:"ペプシコ",WMT:"ウォルマート",BAC:"バンク・オブ・アメリカ",NFLX:"ネットフリックス",ADBE:"アドビ",
+  CRM:"セールスフォース",ORCL:"オラクル",AMD:"AMD",INTC:"インテル",CSCO:"シスコ",QCOM:"クアルコム",TXN:"テキサス・インスツルメンツ",IBM:"IBM",
+  DIS:"ディズニー",NKE:"ナイキ",MCD:"マクドナルド",SBUX:"スターバックス",BA:"ボーイング",CAT:"キャタピラー",GE:"GEエアロスペース",GEV:"GEベルノバ",
+  MMM:"スリーエム",HON:"ハネウェル",LMT:"ロッキード・マーチン",RTX:"RTX（レイセオン）",GS:"ゴールドマン・サックス",MS:"モルガン・スタンレー",
+  C:"シティグループ",WFC:"ウェルズ・ファーゴ",AXP:"アメリカン・エキスプレス",PYPL:"ペイパル",T:"AT&T",VZ:"ベライゾン",CVX:"シェブロン",PFE:"ファイザー",
+  TMO:"サーモフィッシャー",ABT:"アボット",AMGN:"アムジェン",GILD:"ギリアド",MU:"マイクロン",AMAT:"アプライド・マテリアルズ",LRCX:"ラムリサーチ",
+  KLAC:"KLA",UBER:"ウーバー",ABNB:"エアビーアンドビー",BKNG:"ブッキング",PLTR:"パランティア",CRWD:"クラウドストライク",PANW:"パロアルトネットワークス",
+  NOW:"サービスナウ",INTU:"インテュイット",SNPS:"シノプシス",CDNS:"ケイデンス",DELL:"デル",HPQ:"HP",HPE:"ヒューレット・パッカード・エンタープライズ",
+  F:"フォード",GM:"ゼネラル・モーターズ",UPS:"UPS",FDX:"フェデックス",LOW:"ロウズ",TGT:"ターゲット",CMG:"チポトレ",MDLZ:"モンデリーズ",MO:"アルトリア",
+  PM:"フィリップ・モリス",CL:"コルゲート",SPGI:"S&Pグローバル",BLK:"ブラックロック",SCHW:"チャールズ・シュワブ",DE:"ディア",UNP:"ユニオン・パシフィック",
+  NEE:"ネクステラ・エナジー",DUK:"デューク・エナジー",SO:"サザン",AMT:"アメリカン・タワー",PLD:"プロロジス",ANET:"アリスタ・ネットワークス",
+  SMCI:"スーパー・マイクロ",MRNA:"モデルナ",CVS:"CVSヘルス",ISRG:"インテュイティブ・サージカル",VRTX:"バーテックス",REGN:"リジェネロン",
+  BMY:"ブリストル・マイヤーズ",ZTS:"ゾエティス",SNDK:"サンディスク",STX:"シーゲイト",WDC:"ウエスタンデジタル",MRVL:"マーベル",ADI:"アナログ・デバイセズ",
+  NXPI:"NXP",ON:"オン・セミコンダクター",APP:"アップラビン",COIN:"コインベース",HOOD:"ロビンフッド",DASH:"ドアダッシュ",RDDT:"レディット",
+  LULU:"ルルレモン",DPZ:"ドミノ・ピザ",YUM:"ヤム・ブランズ",KHC:"クラフト・ハインツ",HSY:"ハーシー",ADP:"ADP",ACN:"アクセンチュア",FTNT:"フォーティネット",
+  MPC:"マラソン・ペトロリアム",COP:"コノコフィリップス",OXY:"オキシデンタル",SLB:"SLB（シュルンベルジェ）",VST:"ビストラ",CEG:"コンステレーション・エナジー",
+  NEM:"ニューモント",FCX:"フリーポート・マクモラン",LIN:"リンデ",SHW:"シャーウィン・ウィリアムズ",EBAY:"イーベイ",ETSY:"エッツィ",EXPE:"エクスペディア",
+  MAR:"マリオット",HLT:"ヒルトン",WBD:"ワーナー・ブラザース・ディスカバリー",CMCSA:"コムキャスト",TMUS:"Tモバイル",CHTR:"チャーター",
+  ORLY:"オライリー",AZO:"オートゾーン",TJX:"TJX",ROST:"ロス・ストアーズ",KR:"クローガー",DG:"ダラー・ジェネラル",BBY:"ベスト・バイ"};
 
-const app=()=>document.getElementById("app");
-const fmtUsd=v=> "$"+v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-const scoreCls=s=> s>=70?"s-hi":(s>=50?"s-mid":"s-lo");
+let DATA = null, CHART = null;
+let balance = +store.get("us_bal", 0) || 0;
+let K = +store.get("us_k", 10) || 10;
+let hold = store.get("us_hold", null);
+if(!hold){ hold = (store.get("us_held", []) || []).map(t => ({t, sh:0, cost:0})); store.set("us_hold", hold); }   // 旧形式から移す
+let view = store.get("us_view", "todo"), sel = null, query = "", loading = false, lastFetch = 0;
+let done = store.get("us_done", "");      // 見直しを済ませた月末（例 "2026-08-31"）
 
-async function boot(){
+const byT = t => DATA.stocks.find(s => s.t === t);
+const usd = v => "$" + (+v).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+const yen = v => (v < 0 ? "-¥" : "¥") + Math.abs(Math.round(v)).toLocaleString();
+const sgn = v => (v > 0 ? "+" : "") + v;
+const cls = s => s == null ? "lo" : s >= 70 ? "hi" : s >= 50 ? "mid" : "lo";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const W = ["日","月","火","水","木","金","土"];
+function jd(iso){ if(!iso) return "—"; const [y,m,d] = iso.split("-").map(Number); return `${m}/${d}(${W[new Date(Date.UTC(y,m-1,d)).getUTCDay()]})`; }
+const mo = iso => +iso.slice(5,7) + "月";
+const rate = () => DATA.usdjpy || 150;
+const nameOf = s => JA[s.t] ? `${JA[s.t]}` : s.n;
+
+async function load(){
+  if(loading) return; loading = true; $("#refresh").innerHTML = '<span class="spin">↻</span>';
   try{
-    const r=await fetch("data.json?v="+Date.now());
-    if(!r.ok) throw new Error("data.json が読めません ("+r.status+")");
-    DATA=await r.json();
-  }catch(e){
-    app().innerHTML=`<div class="card"><div class="err">データを読み込めませんでした。<br>
-      ${e.message}<br><br>毎晩の自動更新がまだ動いていない可能性があります。</div></div>`;
-    return;
-  }
-  render();
-}
-
-function regimeBox(){
-  const m=DATA.market||{};
-  const on=m.risk_on;
-  return `<div class="regime ${on?'r-on':'r-off'}">
-    ${on?'●':'▲'} 相場全体：${m.label||'—'}
-    <div style="font-weight:400;font-size:11.5px;margin-top:3px;">${m.note||''}</div></div>`;
-}
-
-function render(){
-  if(VIEW==="detail" && SEL) return renderDetail();
-  if(VIEW==="set")   return renderSettings();
-  if(VIEW==="hold")  return renderHeld();
-  return renderBuy();
-}
-
-function renderBuy(){
-  const list=(DATA.stocks||[]).filter(s=>s.sig==="buy").slice(0,40);
-  const rows=list.map((s,i)=>`
-    <div class="row" data-t="${s.t}">
-      <div class="rk">${i+1}</div>
-      <div class="tk">${s.t}</div>
-      <div class="nm">${s.n}</div>
-      <div class="sc ${scoreCls(s.score)}">${s.score}</div>
-    </div>`).join("") || `<div class="fnote">いま買い候補はありません。相場全体が弱い時は候補が減ります（無理に買わないのが正解）。</div>`;
-  app().innerHTML = regimeBox() + secWarn(list) + `<div class="card">
-    <div style="font-size:12px;color:var(--sub);margin-bottom:6px;">
-      スコアの高い順（100点満点）。タップで詳細。<br>
-      <b style="color:var(--accent)">上位10銘柄くらいまで</b>を目安に、業種を分けて買うのが検証で最も安定しました。</div>${rows}</div>
-    <div class="fnote">更新: ${DATA.updated||'—'}　対象: ${DATA.universe||'—'}銘柄（S&amp;P500）
-      ${DATA.note_bias?`<br><br>${DATA.note_bias}`:''}</div>`;
-  bindRows();
-}
-
-// 同じ業種に偏っていないかの注意（中長期では分散が効く）
-function secWarn(list){
-  if(list.length<5) return "";
-  const c={}; list.slice(0,10).forEach(s=>c[s.sec]=(c[s.sec]||0)+1);
-  const top=Object.entries(c).sort((a,b)=>b[1]-a[1])[0];
-  if(top && top[1]>=5) return `<div class="banner">⚠ 上位10件のうち${top[1]}件が「${top[0]}」に偏っています。
-    同じ業種だけ買うと一緒に下がります。業種を分けて持つのが安全です。</div>`;
-  return "";
-}
-
-function bindRows(){
-  app().querySelectorAll(".row[data-t]").forEach(el=>{
-    el.addEventListener("click",()=>{
-      SEL=(DATA.stocks||[]).find(x=>x.t===el.dataset.t);
-      VIEW="detail"; render(); window.scrollTo(0,0);
-    });
-  });
-}
-
-function facBar(label, v){
-  const w=Math.max(0,Math.min(100,v||0));
-  return `<div class="fac"><div class="fl">${label}</div>
-    <div class="fb"><div class="bar"><i style="width:${w}%"></i></div></div>
-    <div class="fv">${Math.round(w)}</div></div>`;
-}
-
-function renderDetail(){
-  const s=SEL;
-  const rate = DATA.usdjpy || 150;          // ドル円。データに無ければ概算値
-  const yenPerShare = s.px * rate;
-  const lot = balance>0 ? Math.floor(balance*posPct/100/yenPerShare) : null;
-  const isHeld = held.includes(s.t);
-  app().innerHTML=`
-    <button class="back" id="back">← 一覧へ戻る</button>
-    <div class="card">
-      <div style="text-align:center;font-size:13px;color:var(--sub);">${s.t}　${s.n}</div>
-      <div class="big">${fmtUsd(s.px)}</div>
-      <div class="sub">${s.sec}</div>
-      <div style="text-align:center;margin-top:10px;">
-        <span class="pill ${s.sig==='buy'?'p-good':(s.sig==='avoid'?'p-bad':'')}">${
-          s.sig==='buy'?'買い候補':(s.sig==='avoid'?'見送り':'様子見')}</span>
-        <span class="pill">総合 ${s.score}点</span>
-      </div>
-    </div>
-    <div class="card">
-      <div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">
-        スコアの内訳（この3つで100点を決めています）</div>
-      ${facBar("値上がりの勢い", s.f.mom)}
-      ${facBar("長期トレンド",   s.f.trend)}
-      ${facBar("1年の勢い",      s.f.mom12)}
-      <div class="fnote">※「S&amp;P500の中での順位」です（100＝最上位、50＝真ん中）。
-        この3つは20年の検証で実際に効いた指標だけを使っています。</div>
-      <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);">
-        <div class="fnote" style="margin:0;">参考（点数には入れていません）</div>
-        ${facBar("値動きの穏やかさ", s.f.vol)}
-        <div class="fnote">値動きが激しい銘柄ほど左寄りです。検証では成績との
-          関係がはっきりしなかったため点数には使わず、心構えの目安として出しています。</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="kv"><span>想定の保有期間</span><b>${s.hold||"6〜12ヶ月"}</b></div>
-      <div class="kv"><span>撤退ライン（200日線）</span>
-        <b>${fmtUsd(s.stop)}<span style="color:var(--sell);font-size:11.5px;">
-        （${s.stop_pct!=null?s.stop_pct:'—'}%）</span></b></div>
-      ${lot!==null?`<div class="kv"><span>買う株数の目安（資金の${posPct}%）</span>
-        <b>${lot}株 ≒ ¥${Math.round(lot*yenPerShare).toLocaleString()}</b></div>`:
-        `<div class="fnote">⚙設定で資金を入れると、買う株数の目安が出ます。</div>`}
-      <div class="fnote">撤退ラインまで下がると<b style="color:var(--sell)">${s.stop_pct!=null?Math.abs(s.stop_pct).toFixed(1):'—'}%の含み損</b>になります。
-        資金の${posPct}%で買った場合、資金全体では約<b>${s.stop_pct!=null?(Math.abs(s.stop_pct)*posPct/100).toFixed(1):'—'}%</b>の損失です。
-        中長期は途中で必ず下がる場面があるので、この幅に耐えられる金額だけ買ってください。</div>
-    </div>
-    ${s.why?`<div class="card"><div style="font-size:12.5px;font-weight:700;color:var(--accent);margin-bottom:4px;">なぜこの評価？</div>
-      <div class="fnote" style="color:var(--text);">${s.why}</div></div>`:""}
-    <button style="width:100%;padding:13px;border-radius:12px;border:1px solid ${isHeld?'var(--sell)':'var(--accent)'};
-      background:${isHeld?'rgba(255,93,108,.15)':'var(--card)'};color:${isHeld?'#ffb3ba':'var(--accent)'};
-      font-weight:700;font-size:14px;margin-bottom:14px;" id="toggleHold">
-      ${isHeld?"保有リストから外す":"＋ 保有リストに追加"}</button>`;
-  document.getElementById("back").onclick=()=>{VIEW="buy";render();};
-  document.getElementById("toggleHold").onclick=()=>{
-    held = isHeld ? held.filter(x=>x!==s.t) : held.concat(s.t);
-    localStorage.setItem("us_held",JSON.stringify(held));
+    const r = await fetch("data.json?t=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) throw new Error("data.json " + r.status);
+    DATA = await r.json(); lastFetch = Date.now();
     render();
-  };
+  }catch(e){
+    if(!DATA) app().innerHTML = `<div class="warn">データを読み込めませんでした（${esc(e.message)}）。通信を確認して ↻ を押してください。</div>`;
+    else $("#upd").innerHTML = '<span style="color:var(--sell)">通信できず前回の値</span>';
+  }finally{ loading = false; $("#refresh").textContent = "↻"; }
 }
+async function loadChart(){
+  if(CHART) return CHART;
+  try{ const r = await fetch("chart.json?t=" + DATA.updated.replace(/\D/g, "")); if(r.ok) CHART = await r.json(); }catch(e){}
+  return CHART;
+}
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible" && Date.now() - lastFetch > 30*60e3) load(); });
 
-function renderHeld(){
-  if(!held.length){
-    app().innerHTML=`<div class="card"><div class="fnote">
-      保有リストは空です。銘柄の詳細画面から「＋保有リストに追加」で登録すると、
-      ここで<b>売り時</b>をまとめて確認できます。</div></div>`;
+// ================= 今月の見直し（ここ1か所で決める） =================
+// 月末の点数で：持ち株のうち 70 未満は売る → 空いた枠を、70以上・200日線の上・地雷なしの銘柄で
+// 点数順に埋める（同じ業種5つ・同じ細かい業種2つまで）。S&P500 が月末に 200日線の下なら新規は止める。
+function plan(){
+  const R = DATA.rule, M = DATA.market;
+  const sells = [], keeps = [], buys = [];
+  const sec = {}, sub = {};
+  hold.forEach(h => {
+    const s = byT(h.t);
+    if(!s){ sells.push({h, s:null, why:"S&P500から外れた（買収・入れ替えなど）"}); return; }
+    if(s.me == null || s.me < R.buyMin){ sells.push({h, s, why:`${mo(DATA.monthEnd)}末の点数が${s.me ?? "—"}点（70未満）`}); return; }
+    keeps.push({h, s}); sec[s.sec] = (sec[s.sec] || 0) + 1; sub[s.sub] = (sub[s.sub] || 0) + 1;
+  });
+  const slots = Math.max(0, K - keeps.length);
+  if(M.onMe && slots){
+    const held = new Set(hold.map(h => h.t));
+    const cands = DATA.stocks.filter(s => s.elig && !held.has(s.t)).sort((a, b) => b.me - a.me);
+    for(const s of cands){
+      if(buys.length >= slots) break;
+      if((sec[s.sec] || 0) >= R.sectorCap || (sub[s.sub] || 0) >= R.subCap) continue;
+      buys.push(s); sec[s.sec] = (sec[s.sec] || 0) + 1; sub[s.sub] = (sub[s.sub] || 0) + 1;
+    }
+  }
+  return {sells, keeps, buys, slots};
+}
+function sharesFor(s){ if(!(balance > 0)) return null; return Math.floor(balance / K / (s.px * rate())); }
+
+// ================= 描画 =================
+function render(){
+  if(!DATA) return;
+  $("#upd").textContent = DATA.updated.slice(5).replace("-", "/") + " 更新";
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
+  if(sel) return renderDetail(sel);
+  ({todo:renderTodo, cand:renderCand, hold:renderHold, find:renderFind}[view] || renderTodo)();
+}
+function regimeBox(){
+  const M = DATA.market;
+  const now = M.onNow === M.onMe ? "" : `<br><span class="note">いま（${jd(DATA.asof)}）は S&P500 が200日線の${M.onNow ? "上" : "下"}（${sgn(M.devNow)}%）。次の月末に${M.onNow ? "上" : "下"}なら${M.onNow ? "新規の買いを再開" : "新規を止める"}。</span>`;
+  return `<div class="regime ${M.onMe ? "r-on" : "r-off"}">
+    <b class="h">${M.onMe ? "● 新しく買ってよい月" : "▲ 今月は新しく買わない"}</b><br>
+    ${mo(DATA.monthEnd)}末の S&P500 は200日線の${M.onMe ? "上" : "下"}（${sgn(M.devMe)}%）。${M.onMe ? "" : "持ち株は70点のルールどおりに。空いた枠は現金で待つ。"}${now}
+    <div class="note" style="margin-top:4px;">検証（20年）では、200日線の下で新規を止めると年率はほぼ同じで、最大の下落が−58%→−33%に縮みました。</div></div>`;
+}
+function row(s, rk, extra){
+  const d = s.score - (s.prev ?? s.score);
+  return `<div class="row" data-t="${s.t}">
+    ${rk != null ? `<div class="rk">${rk}</div>` : ""}
+    <div class="tk">${s.t}<small>${usd(s.px)}</small></div>
+    <div class="nm"><b>${esc(nameOf(s))}</b><br>${extra || esc(s.secJa)}</div>
+    <div class="sc ${cls(s.me ?? s.score)}">${s.me ?? "—"}<small>いま ${s.score}${d ? (d > 0 ? " ↑" : " ↓") : ""}</small></div></div>`;
+}
+function reviewHead(){
+  const nx = DATA.nextMonthEnd;
+  return `<div class="note">使うのは<b>${mo(DATA.monthEnd)}末（${jd(DATA.monthEnd)}）の点数</b>。次の見直しは ${jd(nx)} の終値 → 日本時間の翌朝に更新。
+    月の途中で70点を割っても、月末に戻れば持ち続けます（毎週見直すより月1回の方が成績が良かった）。</div>`;
+}
+// 月末から何日たったか（見直しは月初めに1回の前提で検証している）
+function daysSinceMonthEnd(){ return Math.round((Date.now() - Date.parse(DATA.monthEnd + "T21:00:00Z")) / 86400e3); }
+function lateNote(){
+  const d = daysSinceMonthEnd();
+  if(d <= 7) return "";
+  return `<div class="banner">${mo(DATA.monthEnd)}末から${d}日たっています。規則は「月初めに見直して、次の月末まで動かない」前提で検証しました。
+    これから始める・見直すなら、次の見直し（${jd(DATA.nextMonthEnd)}の終値の翌朝）まで待つと規則どおりになります。</div>`;
+}
+function renderTodo(){
+  const P = plan(), M = DATA.market;
+  let html = regimeBox();
+  if(hold.length && done === DATA.monthEnd){
+    const warn = P.keeps.filter(x => x.s.score < 70);
+    html += `<div class="card"><h2>✔ ${mo(DATA.monthEnd)}末の見直しは済み</h2>
+      <div class="note" style="color:var(--text); font-size:13px;">次の見直しまで<b>何もしなくてOK</b>です。</div>
+      <div class="kv" style="margin-top:6px;"><span>次の見直し</span><b>${jd(DATA.nextMonthEnd)} の終値 → 翌朝</b></div>
+      ${warn.length ? `<div class="note" style="margin-top:6px;">いま70点を割っている持ち株：${warn.map(x => `<b>${x.s.t}</b>(${x.s.score})`).join("、")}。月末も70未満なら次の見直しで売ります。</div>` : ""}
+      <button class="btn ghost" id="undo">見直しの内容をもう一度見る</button></div>`;
+    html += `<div class="note" style="margin:0 2px 12px;">${esc(DATA.note_bias)}</div>`;
+    app().innerHTML = html;
+    $("#undo").onclick = () => { done = ""; store.set("us_done", ""); render(); };
     return;
   }
-  const rows=held.map(t=>{
-    const s=(DATA.stocks||[]).find(x=>x.t===t);
-    if(!s) return `<div class="row"><div class="tk">${t}</div>
-      <div class="nm">対象外（S&amp;P500から外れた可能性）</div></div>`;
-    const sell = s.sig==="avoid" || s.px<=s.stop;
-    return `<div class="row" data-t="${s.t}">
-      <div class="tk">${s.t}</div>
-      <div class="nm">${sell?'<span style="color:#ffb3ba">売り検討</span>':'継続保有でOK'}</div>
-      <div class="sc ${scoreCls(s.score)}">${s.score}</div></div>`;
-  }).join("");
-  app().innerHTML=regimeBox()+`<div class="card">${rows}</div>
-    <div class="fnote">「売り検討」＝評価が下がった、または撤退ラインを割った銘柄です。</div>`;
+  html += lateNote();
+  if(!hold.length){
+    const model = (DATA.model || []).map(byT).filter(Boolean);
+    html += `<div class="card"><h2>はじめるなら この${model.length}銘柄 <small>${mo(DATA.monthEnd)}末・業種を分散</small></h2>
+      ${M.onMe ? model.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${sharesFor(s) != null ? `・<b style="color:var(--accent)">${sharesFor(s)}株</b>` : ""}`)).join("")
+               : `<div class="note">今月は S&P500 が200日線の下なので、<b>新しく買わずに待つ</b>のが検証上の正解です。</div>`}
+      <div class="note" style="margin-top:8px;">資金を${K}等分して1銘柄ずつ買う想定です（銘柄数と資金は「保有」タブの下で設定）。持ったら<b>「保有」に登録</b>すると、毎月の売り時がここに出ます。</div>
+      ${reviewHead()}</div>`;
+  }else{
+    const sl = P.sells.map(x => x.s ? row(x.s, null, `<span style="color:#ffb3ba">${esc(x.why)}</span>`)
+      : `<div class="row"><div class="tk">${x.h.t}</div><div class="nm">${esc(x.why)}</div></div>`).join("");
+    const bl = P.buys.map((s, i) => row(s, i + 1, `${esc(s.secJa)}${sharesFor(s) != null ? `・<b style="color:var(--accent)">${sharesFor(s)}株</b>` : ""}`)).join("");
+    const kl = P.keeps.map(x => row(x.s, null, `${esc(x.s.secJa)}・<span class="plus">持ち続ける</span>`)).join("");
+    const nothing = !P.sells.length && !P.buys.length;
+    html += `<div class="card"><h2>${mo(DATA.monthEnd)}末の見直し <small>持ち株${hold.length}・目標${K}銘柄</small></h2>
+      ${nothing ? `<div class="note" style="color:var(--text); font-size:13px;"><b>今月やることはありません。</b>全部持ち続けてOK。</div>` : ""}
+      ${P.sells.length ? `<div class="grp s"><span>売る ${P.sells.length}</span><span>月末の点数</span></div>${sl}` : ""}
+      ${P.buys.length ? `<div class="grp b"><span>買う ${P.buys.length}</span><span>月末の点数</span></div>${bl}` : ""}
+      ${!M.onMe && P.slots ? `<div class="grp b"><span>買う（空き${P.slots}枠）</span></div><div class="note">今月は新しく買わない月。空いた枠は現金で待ちます。</div>` : ""}
+      ${P.keeps.length ? `<div class="grp k"><span>持ち続ける ${P.keeps.length}</span><span>月末の点数</span></div>${kl}` : ""}
+      <div style="margin-top:8px;">${reviewHead()}</div>
+      <button class="btn" id="done">売り買いを済ませた（次の見直しまで隠す）</button></div>`;
+    const warn = P.keeps.filter(x => x.s.score < 70);
+    if(warn.length) html += `<div class="banner">⚠ いま70点を割っている持ち株：${warn.map(x => `<b>${x.s.t}</b>(${x.s.score})`).join("、")}。このまま月末も70未満なら、次の見直しで売ります。</div>`;
+  }
+  html += `<div class="note" style="margin:0 2px 12px;">${esc(DATA.note_bias)}</div>`;
+  app().innerHTML = html; bindRows();
+  const b = $("#done"); if(b) b.onclick = () => { done = DATA.monthEnd; store.set("us_done", done); render(); window.scrollTo(0, 0); };
+}
+function renderCand(){
+  const el = DATA.stocks.filter(s => s.elig).sort((a, b) => b.me - a.me);
+  const model = new Set(DATA.model || []);
+  const heldSet = new Set(hold.map(h => h.t));
+  app().innerHTML = regimeBox() + `<div class="card"><h2>買える銘柄 <small>${el.length}銘柄・${mo(DATA.monthEnd)}末の点数順</small></h2>
+    ${el.map((s, i) => row(s, i + 1, `${model.has(s.t) ? '<span class="chip acc">10選</span>' : ""}${heldSet.has(s.t) ? '<span class="chip buy">保有中</span>' : ""}${esc(s.secJa)}`)).join("")}
+    <div class="note" style="margin-top:8px;">条件：月末の点数70以上・200日線の上・財務に地雷（営業赤字・ROEマイナス・借金過多・PER100倍超）なし。
+      「10選」は業種の偏りを抑えて（同じ業種5つ・同じ細かい業種2つまで）10銘柄選んだ組み合わせ。右の大きい数字が月末の点数、小さい数字がいまの点数。</div></div>`;
   bindRows();
 }
+function renderHold(){
+  let tot = 0, totCost = 0;
+  const rows = hold.map((h, k) => {
+    const s = byT(h.t);
+    if(!s) return `<div class="row"><div class="tk">${h.t}</div><div class="nm">S&P500から外れた可能性（データ無し）</div></div>`;
+    const val = h.sh * s.px, pl = h.cost > 0 && h.sh > 0 ? (s.px - h.cost) * h.sh : null;
+    tot += val; if(h.cost > 0) totCost += h.cost * h.sh;
+    const st = s.me == null || s.me < 70 ? '<span class="chip sell">月末で売り</span>' : (s.score < 70 ? '<span class="chip acc">70割れ注意</span>' : '<span class="chip buy">持ち続ける</span>');
+    return row(s, null, `${st}${h.sh ? `${h.sh}株` : ""}${pl != null ? ` <b class="${pl >= 0 ? "plus" : "minus"}">${sgn((pl / (h.cost * h.sh) * 100).toFixed(1))}%</b>` : ""}`);
+  }).join("");
+  const plTot = totCost > 0 ? tot - hold.reduce((a, h) => { const s = byT(h.t); return a + (s && h.cost > 0 ? h.sh * s.px : 0); }, 0) : 0;
+  app().innerHTML = `<div class="card"><h2>持っている株 <small>${hold.length}銘柄</small></h2>
+    ${rows || `<div class="note">まだ登録がありません。「候補」や「探す」で銘柄を開き、「保有に追加」を押してください。</div>`}
+    ${tot > 0 ? `<div class="kv" style="margin-top:6px;"><span>評価額（${rate()}円/ドル）</span><b>${usd(tot)} ≒ ${yen(tot * rate())}</b></div>` : ""}
+    <div class="note" style="margin-top:6px;">株数と買値（1株のドル）を入れると損益が出ます。銘柄をタップして入力。</div></div>
+    <div class="card"><h2>設定</h2>
+      <div class="field"><label>株に使う資金（円）</label><input id="bal" inputmode="numeric" placeholder="例 3000000" value="${balance || ""}"></div>
+      <div class="field"><label>持つ銘柄数</label><select id="k">${[5, 10, 15].map(v => `<option value="${v}" ${v === K ? "selected" : ""}>${v}銘柄${v === 10 ? "（おすすめ）" : ""}</option>`).join("")}</select></div>
+      <div class="note">資金を銘柄数で等分して「何株買うか」を出します。検証では10銘柄が、成績と分散のつり合いが良かった（5銘柄は成績が少し上だが値動きが荒い、15・20銘柄は成績が下がる）。</div></div>
+    ${howto()}`;
+  bindRows();
+  $("#bal").addEventListener("change", e => { balance = parseFloat(e.target.value.replace(/[^\d.]/g, "")) || 0; store.set("us_bal", balance); });
+  $("#k").addEventListener("change", e => { K = +e.target.value || 10; store.set("us_k", K); });
+}
+function howto(){
+  return `<details class="card"><summary>📖 使い方と規則</summary><div class="note" style="color:var(--text)">
+    <b>① 月に1回（月末の翌朝）だけ開く</b><br>「やること」に、売る株・買う株・持ち続ける株が出ます。<br><br>
+    <b>② 売る → 買う</b><br>月末の点数が70未満になった株を売り、空いた枠を点数の高い順に埋めます。S&P500 が200日線の下の月は新しく買いません。<br><br>
+    <b>③ あとは次の月末まで何もしない</b><br>月の途中の上げ下げでは動かない方が、20年の検証で成績が良かった。<br><br>
+    <b>点数</b>＝6ヶ月の値上がりの順位（50%）＋200日線からの離れ具合の順位（30%）＋1年の値上がりの順位（20%）。S&P500 の中での位置（100＝最上位）。<br>
+    <b>比べた売り方（年率・最大下落）</b>：月末70点割れで売る 32.7%・−58%／S&P500の200日線で新規を止める 31.6%・−33%／以前の「40点割れか200日線割れで売る」27.9%・−59%／高値から−20%で売る 24%前後。<br>
+    ${esc(DATA.note_bias)}</div></details>`;
+}
+function renderFind(){
+  app().innerHTML = `<input class="search" id="q" placeholder="ティッカー・会社名（例 AAPL / apple / アップル）" value="${esc(query)}" autocomplete="off">
+    <div class="card" id="res"></div>`;
+  const q = $("#q");
+  const draw = () => {
+    query = q.value.trim();
+    const Q = query.toLowerCase();
+    // 並び：ティッカー完全一致 → ティッカーの頭 → 名前の頭 → 名前のどこか（同じ組は点数順）
+    const rank = s => { const t = s.t.toLowerCase(), n = s.n.toLowerCase(), j = JA[s.t] || "";
+      if(t === Q) return 0; if(t.startsWith(Q)) return 1;
+      if(n.startsWith(Q) || j.startsWith(query) || n.split(/[\s,.]+/).some(w => w.startsWith(Q))) return 2;
+      if(n.includes(Q) || j.includes(query)) return 3; return 9; };
+    const list = !Q ? DATA.stocks.slice(0, 40)
+      : DATA.stocks.map(s => [rank(s), s]).filter(x => x[0] < 9).sort((a, b) => a[0] - b[0] || b[1].score - a[1].score).map(x => x[1]).slice(0, 60);
+    $("#res").innerHTML = `<h2>${Q ? `「${esc(query)}」の結果` : "いまの点数が高い順"} <small>${list.length}件</small></h2>` +
+      (list.map(s => row(s, null, `${s.elig ? '<span class="chip buy">買える</span>' : (s.me != null && s.me < 70 ? "" : "")}${esc(s.secJa)}`)).join("") || `<div class="note">見つかりません（S&P500の銘柄だけを扱っています）。</div>`);
+    bindRows();
+  };
+  q.addEventListener("input", draw); draw();
+  if(!query) setTimeout(() => q.focus(), 50);
+}
+function bindRows(){
+  app().querySelectorAll(".row[data-t]").forEach(el => el.addEventListener("click", () => { sel = el.dataset.t; render(); window.scrollTo(0, 0); }));
+}
 
-function renderSettings(){
-  app().innerHTML=`<div class="card">
-    <div class="keybox">
-      <input id="bal" type="text" inputmode="numeric" placeholder="資金(円) 例: 1000000" value="${balance||''}">
-      <select id="pos">
-        ${[3,5,10,15,20].map(v=>`<option value="${v}" ${v===posPct?'selected':''}>1銘柄 ${v}%</option>`).join("")}
-      </select>
+// ---------- 銘柄の詳細 ----------
+async function renderDetail(t){
+  const s = byT(t);
+  if(!s){ sel = null; return render(); }
+  const h = hold.find(x => x.t === t);
+  const R = DATA.rule;
+  const status = s.elig ? '<span class="chip buy">買える（月末70点以上）</span>'
+    : (s.me != null && s.me >= 70 && s.bad && s.bad.length ? '<span class="chip sell">点数は高いが財務に注意</span>'
+    : (s.me != null && s.me >= 70 ? '<span class="chip acc">点数は70以上（200日線の下）</span>' : '<span class="chip">月末の点数が70未満</span>'));
+  const f = s.fund || {};
+  const pct = v => v == null ? "—" : (v * 100).toFixed(1) + "%";
+  const hs = s.hist || [], mes = DATA.monthEnds || [];
+  const bars = hs.map((v, i) => `<i class="${v != null && v >= 70 ? "ok" : ""}" style="height:${Math.max(3, v || 0)}%" title="${mes[i]} ${v}"></i>`).join("");
+  const sh = sharesFor(s);
+  const pl = h && h.cost > 0 && h.sh > 0 ? (s.px - h.cost) * h.sh : null;
+  app().innerHTML = `<button class="back" id="back">‹ 戻る</button>
+    <div class="card">
+      <div class="note">${s.t}　${esc(s.n)}${JA[s.t] ? `（${JA[s.t]}）` : ""}</div>
+      <div style="display:flex; align-items:baseline; gap:10px;"><span class="big">${usd(s.px)}</span>
+        <span class="${s.chg1d >= 0 ? "plus" : "minus"}">${sgn(s.chg1d)}%</span></div>
+      <div class="note">${esc(s.secJa)}・${esc(s.sub)}（${jd(DATA.asof)} 終値）</div>
+      <div style="margin-top:8px;">${status}${h ? '<span class="chip acc">保有中</span>' : ""}</div>
     </div>
-    <div class="fnote">資金と「1銘柄あたり何%まで買うか」を決めると、買う株数の目安が出ます。
-      中長期は<b>5〜10%ずつ・10銘柄前後に分ける</b>のが一般的です。</div>
-    <div class="fnote" style="margin-top:10px;">保有リスト: ${held.length}件
-      ${held.length?`<br>${held.join(", ")}`:""}</div>
-  </div>`;
-  const b=document.getElementById("bal"), p=document.getElementById("pos");
-  b.oninput=()=>{balance=parseFloat(b.value.replace(/[^\d.]/g,""))||0;
-    localStorage.setItem("us_bal",balance);};
-  p.onchange=()=>{posPct=parseFloat(p.value); localStorage.setItem("us_pos",posPct);};
+    <div class="card"><h2>点数 <small>月末 ${s.me ?? "—"}点・いま ${s.score}点</small></h2>
+      <div class="hbars">${bars}<div class="line" style="bottom:70%"></div></div>
+      <div class="hlab"><span>${mes[0] ? mes[0].slice(2, 4) + "年" + mo(mes[0]) : ""}</span><span>月末の点数　緑＝70以上</span><span>${mes.length ? mes[mes.length - 1].slice(2, 4) + "年" + mo(mes[mes.length - 1]) : ""}</span></div>
+      <div style="margin-top:10px;">
+        <div class="fac"><span class="fl">6ヶ月の値上がり</span><span class="fb"><i style="width:${s.f.mom}%"></i></span><span class="fv">${s.f.mom}</span></div>
+        <div class="fac"><span class="fl">200日線との差</span><span class="fb"><i style="width:${s.f.trend}%"></i></span><span class="fv">${s.f.trend}</span></div>
+        <div class="fac"><span class="fl">1年の値上がり</span><span class="fb"><i style="width:${s.f.mom12}%"></i></span><span class="fv">${s.f.mom12}</span></div>
+      </div>
+      <div class="note">S&P500 の中での順位（100＝最上位）。6ヶ月で ${sgn(s.chg6m)}%、200日線から ${sgn(s.trend)}%。</div>
+      ${s.why ? `<div class="note" style="margin-top:6px; color:var(--text)">${esc(s.why)}</div>` : ""}
+    </div>
+    <div class="card"><h2>1年の値動き <small>週ごと</small></h2><canvas id="cv" height="170"></canvas></div>
+    <div class="card"><h2>財務（地雷チェック用）</h2>
+      <div class="kv"><span>次の決算発表</span><b>${f.earn ? jd(f.earn) : "—"}</b></div>
+      <div class="kv"><span>ROE（稼ぐ力）</span><b>${pct(f.roe)}</b></div>
+      <div class="kv"><span>営業利益率</span><b>${pct(f.opm)}</b></div>
+      <div class="kv"><span>売上の伸び（前年比）</span><b>${pct(f.rev)}</b></div>
+      <div class="kv"><span>借金の多さ（D/E）</span><b>${f.de != null ? f.de.toFixed(0) + "%" : "—"}</b></div>
+      <div class="kv"><span>PER（利益の何倍）</span><b>${f.per != null ? f.per.toFixed(1) + "倍" : "—"}</b></div>
+      <div class="kv"><span>配当利回り</span><b>${pct(f.div)}</b></div>
+      <div class="kv"><span>時価総額</span><b>${f.mcap ? (f.mcap >= 1e12 ? (f.mcap / 1e12).toFixed(2) + "兆ドル" : Math.round(f.mcap / 1e8).toLocaleString() + "億ドル") : "—"}</b></div>
+      <div class="note">点数60以上の銘柄だけ取得しています。順位には使わず、地雷（営業赤字・ROEマイナス・D/E300%超・PER100倍超）を避けるためだけに使います。</div></div>
+    <div class="card"><h2>${h ? "保有の記録" : "買うなら"}</h2>
+      ${sh != null ? `<div class="kv"><span>資金の1/${K}で買える株数</span><b>${sh}株 ≒ ${yen(sh * s.px * rate())}</b></div>` : `<div class="note">「保有」タブで資金を入れると、買う株数の目安が出ます。</div>`}
+      ${h ? `<div class="field"><label>持っている株数</label><input id="sh" inputmode="numeric" value="${h.sh || ""}" placeholder="例 10"></div>
+        <div class="field"><label>買値（1株・ドル）</label><input id="cost" inputmode="decimal" value="${h.cost || ""}" placeholder="例 ${s.px}"></div>
+        ${pl != null ? `<div class="kv"><span>損益</span><b class="${pl >= 0 ? "plus" : "minus"}">${usd(pl).replace("$-", "-$")}（${sgn((pl / (h.cost * h.sh) * 100).toFixed(1))}%）≒ ${yen(pl * rate())}</b></div>` : ""}
+        <button class="btn red" id="toggle">保有から外す（売ったら押す）</button>`
+      : `<button class="btn" id="toggle">＋ 保有に追加（買ったら押す）</button>`}
+      <div class="note" style="margin-top:6px;">この端末の中だけに保存されます。</div></div>`;
+  $("#back").onclick = () => { sel = null; render(); };
+  $("#toggle").onclick = () => {
+    if(h) hold = hold.filter(x => x.t !== t); else hold.push({t, sh:sh || 0, cost:s.px});
+    store.set("us_hold", hold); render();
+  };
+  const upd = () => { const x = hold.find(y => y.t === t); if(!x) return;
+    x.sh = parseFloat(($("#sh").value || "").replace(/[^\d.]/g, "")) || 0; x.cost = parseFloat(($("#cost").value || "").replace(/[^\d.]/g, "")) || 0; store.set("us_hold", hold); };
+  if($("#sh")){ $("#sh").addEventListener("change", () => { upd(); render(); }); $("#cost").addEventListener("change", () => { upd(); render(); }); }
+  const C = await loadChart();
+  if(C && C.px[t] && sel === t) drawChart(C.d, C.px[t]);
+}
+function drawChart(d, v){
+  const cv = $("#cv"); if(!cv) return;
+  const dpr = window.devicePixelRatio || 1, Wd = cv.clientWidth, Ht = 170;
+  cv.width = Wd * dpr; cv.height = Ht * dpr; cv.style.height = Ht + "px";
+  const g = cv.getContext("2d"); g.scale(dpr, dpr);
+  const pts = v.map((y, i) => [i, y]).filter(p => p[1] != null);
+  if(pts.length < 2) return;
+  const ys = pts.map(p => p[1]), lo = Math.min(...ys), hi = Math.max(...ys), pad = (hi - lo) * 0.08 || 1;
+  const L = 4, R = 56, T = 8, B = 150, N = v.length;
+  const x = i => L + (Wd - L - R) * i / (N - 1), y = val => T + (B - T) * (1 - (val - lo + pad) / (hi - lo + 2 * pad));
+  g.font = "11px sans-serif"; g.strokeStyle = "#2a3550"; g.fillStyle = "#9aa7c2";
+  [lo, (lo + hi) / 2, hi].forEach(val => { g.beginPath(); g.moveTo(L, y(val)); g.lineTo(Wd - R, y(val)); g.stroke(); g.fillText("$" + val.toFixed(val < 100 ? 2 : 0), Wd - R + 4, y(val) + 4); });
+  const up = ys[ys.length - 1] >= ys[0];
+  g.strokeStyle = up ? "#23c483" : "#ff5d6c"; g.lineWidth = 2; g.beginPath();
+  pts.forEach((p, k) => k ? g.lineTo(x(p[0]), y(p[1])) : g.moveTo(x(p[0]), y(p[1]))); g.stroke();
+  g.fillStyle = "#9aa7c2"; g.fillText(jd(d[0]), L, Ht - 4); g.textAlign = "right"; g.fillText(jd(d[N - 1]), Wd - R, Ht - 4);
 }
 
-document.getElementById("tabBuy").onclick =()=>{VIEW="buy"; setTab(0); render();};
-document.getElementById("tabHold").onclick=()=>{VIEW="hold";setTab(1); render();};
-document.getElementById("tabSet").onclick =()=>{VIEW="set"; setTab(2); render();};
-function setTab(i){
-  ["tabBuy","tabHold","tabSet"].forEach((id,k)=>
-    document.getElementById(id).classList.toggle("on",k===i));
-}
-boot();
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { view = b.dataset.v; sel = null; store.set("us_view", view); render(); window.scrollTo(0, 0); }));
+$("#refresh").addEventListener("click", load);
+// 前回保存した結果があれば先に出してから、最新を取りに行く（開いた瞬間に表示）
+if("caches" in window) caches.match("data.json").then(r => r && r.json()).then(d => { if(d && !DATA){ DATA = d; render(); } }).catch(() => {});
+load();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
 </html>
