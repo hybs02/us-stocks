@@ -95,6 +95,11 @@
   details.card[open] > summary{margin-bottom:8px;}
   .foot{font-size:11px; color:var(--sub); text-align:center; margin-top:10px; line-height:1.7;}
   .loading{text-align:center; padding:40px 0; color:var(--sub);}
+  #toast{position:fixed; left:50%; bottom:calc(20px + env(safe-area-inset-bottom)); transform:translate(-50%, 20px); opacity:0;
+    max-width:min(92vw, 480px); background:#26324a; color:var(--text); border:1px solid var(--accent); border-radius:12px;
+    padding:10px 14px; font-size:13px; font-weight:700; line-height:1.5; text-align:center; box-shadow:0 6px 24px rgba(0,0,0,.45);
+    transition:opacity .2s, transform .2s; pointer-events:none; z-index:10;}
+  #toast.show{opacity:1; transform:translate(-50%, 0);}
 </style>
 </head>
 <body>
@@ -146,13 +151,31 @@ const JA = {AAPL:"アップル",MSFT:"マイクロソフト",NVDA:"エヌビデ�
 let DATA = null, CHART = null;
 // 結果は自動更新が専用の枝（data）に上書きする。リポジトリの履歴を膨らませないため
 const RAW = "https://raw.githubusercontent.com/hybs02/us-stocks/data/";
-async function getJson(name, bust){
+// ↻ を押した時だけ GitHub API から直接読む（raw は 5 分キャッシュされ、押しても古い値が返ることがあるため）
+const API = "https://api.github.com/repos/hybs02/us-stocks/contents/";
+async function fetchJson(url, opts = {}){
+  const c = new AbortController(), timer = setTimeout(() => c.abort(), 15000);   // 通信が止まっても固まらないように
+  try{
+    const r = await fetch(url, {cache:"no-store", signal:c.signal, ...opts});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  }catch(e){ throw e.name === "AbortError" ? new Error("通信が15秒で終わらなかった") : e; }
+  finally{ clearTimeout(timer); }
+}
+async function getJson(name, bust, direct = false){
+  const srcs = (direct ? [[API + name + "?ref=data", {headers:{Accept:"application/vnd.github.raw+json"}}]] : [])
+    .concat([[RAW + name + "?t=" + bust, {}], [name + "?t=" + bust, {}]]);
   let err = null;
-  for(const u of [RAW + name, name]){
-    try{ const r = await fetch(u + "?t=" + bust, {cache:"no-store"}); if(r.ok) return await r.json(); err = new Error(name + " " + r.status); }
-    catch(e){ err = e; }
+  for(const [u, o] of srcs){
+    try{ return await fetchJson(u, o); }catch(e){ err = e; }
   }
   throw err;
+}
+function toast(msg){
+  let el = $("#toast");
+  if(!el){ el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
+  el.innerHTML = msg; el.className = "show";
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.className = "", 4000);
 }
 let balance = +store.get("us_bal", 0) || 0;
 let K = +store.get("us_k", 10) || 10;
@@ -172,16 +195,30 @@ function jd(iso){ if(!iso) return "—"; const [y,m,d] = iso.split("-").map(Numb
 const mo = iso => +iso.slice(5,7) + "月";
 const rate = () => DATA.usdjpy || 150;
 const nameOf = s => JA[s.t] ? `${JA[s.t]}` : s.n;
+// 右上：何時の計算か・何分前か
+function updText(){
+  const t = Date.parse(DATA.updated.replace(" ", "T") + ":00+09:00"), m = Math.max(0, Math.round((Date.now() - t) / 60e3));
+  return `${DATA.updated.slice(5).replace("-", "/")} の計算<br>${m >= 60 ? Math.floor(m / 60) + "時間" : ""}${m % 60}分前`;
+}
+setInterval(() => { if(DATA) $("#upd").innerHTML = updText(); }, 60e3);
 
-async function load(){
-  if(loading) return; loading = true; $("#refresh").innerHTML = '<span class="spin">↻</span>';
+async function load(manual = false){
+  if(loading){ if(manual) toast("いま読み込み中です…"); return; }
+  loading = true; $("#refresh").innerHTML = '<span class="spin">↻</span>';
+  const started = Date.now(), before = DATA && DATA.updated;
   try{
-    DATA = await getJson("data.json", Date.now()); lastFetch = Date.now(); CHART = null;
+    const d = await getJson("data.json", Date.now(), manual);
+    DATA = d; lastFetch = Date.now(); CHART = null;
     try{ localStorage.setItem("us_cache", JSON.stringify(DATA)); }catch(e){}
+    const wait = 500 - (Date.now() - started); if(wait > 0) await new Promise(r => setTimeout(r, wait));   // 押したことが分かるように
     render();
+    if(manual) toast(before && d.updated <= before
+      ? `いまの表示が最新です（${d.updated.slice(5).replace("-", "/")} の計算）<br><span style="font-weight:400">自動の計算は1日4回（米国の取引中と引け後）</span>`
+      : `新しい計算を取り込みました（${d.updated.slice(5).replace("-", "/")}）`);
   }catch(e){
     if(!DATA) app().innerHTML = `<div class="warn">データを読み込めませんでした（${esc(e.message)}）。通信を確認して ↻ を押してください。</div>`;
     else $("#upd").innerHTML = '<span style="color:var(--sell)">通信できず前回の値</span>';
+    if(manual) toast(`読み込めませんでした（${esc(e.message)}）`);
   }finally{ loading = false; $("#refresh").textContent = "↻"; }
 }
 async function loadChart(){
@@ -221,7 +258,7 @@ function sharesFor(s){ if(!(balance > 0)) return null; return Math.floor(balance
 // ================= 描画 =================
 function render(){
   if(!DATA) return;
-  $("#upd").textContent = DATA.updated.slice(5).replace("-", "/") + " 更新";
+  $("#upd").innerHTML = updText();
   document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.v === view));
   if(sel) return renderDetail(sel);
   ({todo:renderTodo, cand:renderCand, hold:renderHold, find:renderFind}[view] || renderTodo)();
@@ -450,7 +487,7 @@ function drawChart(d, v){
 }
 
 document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { view = b.dataset.v; sel = null; store.set("us_view", view); render(); window.scrollTo(0, 0); }));
-$("#refresh").addEventListener("click", load);
+$("#refresh").addEventListener("click", () => load(true));
 // 前回保存した結果があれば先に出してから、最新を取りに行く（開いた瞬間に表示）
 try{ const c = JSON.parse(localStorage.getItem("us_cache") || "null"); if(c && c.stocks){ DATA = c; render(); } }catch(e){}
 // 開いている間は 15 分ごとに最新を取りに行く
