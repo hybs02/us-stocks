@@ -43,7 +43,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add sp500.csv
           if ! git diff --staged --quiet; then
-            git commit -qm "S&P500 の構成銘柄を更新"
+            git commit -q --allow-empty-message -m ""
             git pull -q --rebase
             git push -q
           fi
@@ -53,5 +53,5 @@ jobs:
           git checkout -q --orphan data-new
           git rm -rq --cached .
           git add -f data.json chart.json
-          git commit -qm "データ $(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')"
+          git commit -q --allow-empty-message -m ""
           git push -fq origin data-new:data
